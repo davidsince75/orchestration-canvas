@@ -198,5 +198,204 @@ export const TEMPLATES = [
         { id: 'dv_e5', from: 'dv_remediate', to: 'dv_output', label: 'renders incident report' }
       ]
     }
+  },
+  {
+    id: 'implementation-leadership',
+    name: 'Implementation Leadership',
+    description: 'Breaks an initiative into a phased execution plan with milestones, risk mitigations, resource ownership, and a feasibility stress-test.',
+    tags: ['leadership', 'planning', 'execution', 'strategy'],
+    brief: 'We are launching [initiative name]. The goal is [outcome]. Key constraints are [budget / timeline / team size]. Produce a phased execution plan with milestones, risk mitigations, clear ownership, and a feasibility assessment.',
+    graph: {
+      nodes: [
+        {
+          id: 'il_orch', type: 'orchestrator', name: 'Implementation Orchestrator',
+          role: 'Coordinates the three planning agents and synthesises their outputs into a coherent execution plan',
+          systemPrompt: 'You are an implementation leadership orchestrator. Your job is to take an initiative brief and coordinate three specialist agents: a scope and milestone planner, a risk and dependency analyst, and a resource and accountability planner. Once all three have completed their analysis, pass their combined output to the feasibility evaluator. Ensure the final plan is specific, time-bound, and assigns clear ownership to every workstream. Flag any gaps between what the brief asks for and what the plan can realistically deliver.',
+          inputSchema: { initiative: 'string', outcome: 'string', constraints: 'object' },
+          outputSchema: { plan: 'object', feasibilityScore: 'number', gaps: 'array' },
+          position: { x: 430, y: 80 }
+        },
+        {
+          id: 'il_scope', type: 'agent', name: 'Scope & Milestone Planner',
+          role: 'Decomposes the initiative into phases, milestones, and concrete deliverables',
+          systemPrompt: 'You are a scope and milestone planning specialist. Given an initiative brief, decompose the work into 3-5 sequential phases. For each phase: name it, state its goal, list 2-4 concrete deliverables, define a clear completion criterion, and estimate its duration in weeks. Identify the critical path — the sequence of phases where any delay directly delays the final outcome. Be specific: avoid vague deliverables like "research done". Use action-oriented language: "Deliver validated prototype with 5 user test results".',
+          inputSchema: { initiative: 'string', constraints: 'object' },
+          outputSchema: { phases: 'array of {name, goal, deliverables, completionCriterion, durationWeeks}', criticalPath: 'array' },
+          position: { x: 100, y: 290 }
+        },
+        {
+          id: 'il_risk', type: 'agent', name: 'Risk & Dependency Analyst',
+          role: 'Surfaces implementation risks, external dependencies, and mitigation strategies',
+          systemPrompt: 'You are a risk and dependency analyst for complex initiatives. Given an initiative brief, identify: (1) the top 5 implementation risks — things that could cause delay, cost overrun, or failure — each with likelihood (low/medium/high), impact (low/medium/high), an early warning signal, and a specific mitigation action; (2) critical external dependencies — teams, vendors, approvals, or data sources this initiative relies on — with the owner and lead time required; (3) single points of failure — places where one person leaving or one system going down would block progress. Be specific and direct. Do not list generic risks like "scope creep" without describing what would actually cause it here.',
+          inputSchema: { initiative: 'string', constraints: 'object' },
+          outputSchema: { risks: 'array of {description, likelihood, impact, earlyWarning, mitigation}', dependencies: 'array', singlePointsOfFailure: 'array' },
+          position: { x: 760, y: 290 }
+        },
+        {
+          id: 'il_resource', type: 'agent', name: 'Resource & Accountability Planner',
+          role: 'Maps the skills, team members, and ownership structure required to deliver each phase',
+          systemPrompt: 'You are a resource and accountability planning specialist. Given an initiative brief and its phases, define: (1) the core team — roles required, the skills each role needs, and estimated time commitment as % FTE per phase; (2) a RACI matrix for the 4-6 most critical decisions or deliverables — who is Responsible, Accountable, Consulted, and Informed; (3) governance cadence — what recurring meetings are needed, at what frequency, and who must attend. If the brief does not specify team members by name, describe the roles needed. Highlight any skill gaps between what is described and what the initiative demands.',
+          inputSchema: { initiative: 'string', phases: 'array', constraints: 'object' },
+          outputSchema: { team: 'array of {role, skills, commitment}', raciMatrix: 'object', governanceCadence: 'array', skillGaps: 'array' },
+          position: { x: 430, y: 290 }
+        },
+        {
+          id: 'il_eval', type: 'evaluator', name: 'Feasibility Evaluator',
+          role: 'Stress-tests the combined plan for realism and flags the three most likely failure modes',
+          systemPrompt: 'You are a senior implementation feasibility evaluator. You have seen many well-intentioned plans fail. Given a scope plan, risk assessment, and resource plan, your job is to play devil\'s advocate and stress-test the combined plan rigorously. Score feasibility from 0-10. Identify: (1) the three most likely failure modes — specific scenarios where this plan breaks down; (2) optimistic assumptions baked into the plan that may not hold; (3) the phase most likely to be underestimated in time or effort, and why; (4) one concrete change that would most improve the plan\'s chances of success. Be honest and specific. A score of 7/10 or above means the plan is viable with the identified caveats.',
+          inputSchema: { scopePlan: 'object', riskAssessment: 'object', resourcePlan: 'object' },
+          outputSchema: { feasibilityScore: 'number', failureModes: 'array', optimisticAssumptions: 'array', mostUnderestimatedPhase: 'string', topImprovement: 'string' },
+          position: { x: 430, y: 490 }
+        },
+        {
+          id: 'il_output', type: 'output', name: 'Execution Plan',
+          role: 'Renders the full implementation plan as a structured report',
+          systemPrompt: '', inputSchema: {}, outputSchema: {},
+          outputTemplate: 'report', outputDesign: 'dark-minimal', outputShowViz: false, outputShowRaw: false,
+          position: { x: 430, y: 670 }
+        }
+      ],
+      edges: [
+        { id: 'il_e1', from: 'il_orch',     to: 'il_scope',    label: 'maps scope & milestones' },
+        { id: 'il_e2', from: 'il_orch',     to: 'il_risk',     label: 'identifies risks' },
+        { id: 'il_e3', from: 'il_orch',     to: 'il_resource', label: 'plans resources' },
+        { id: 'il_e4', from: 'il_scope',    to: 'il_eval',     label: 'passes scope plan' },
+        { id: 'il_e5', from: 'il_risk',     to: 'il_eval',     label: 'passes risk assessment' },
+        { id: 'il_e6', from: 'il_resource', to: 'il_eval',     label: 'passes resource plan' },
+        { id: 'il_e7', from: 'il_eval',     to: 'il_output',   label: 'renders execution plan' }
+      ]
+    }
+  },
+  {
+    id: 'stakeholder-alignment',
+    name: 'Stakeholder Alignment',
+    description: 'Maps stakeholders, surfaces objections, crafts tailored messaging per group, and routes to human review before producing an alignment brief.',
+    tags: ['leadership', 'communication', 'strategy', 'change management'],
+    brief: 'We need alignment on [proposal or initiative]. The key decision or ask is [what you need them to agree to]. The stakeholder groups involved are [list groups or individuals]. Known concerns or tensions include [any you are already aware of].',
+    graph: {
+      nodes: [
+        {
+          id: 'sa_orch', type: 'orchestrator', name: 'Alignment Orchestrator',
+          role: 'Coordinates stakeholder analysis and messaging strategy to build a coherent alignment plan',
+          systemPrompt: 'You are a stakeholder alignment orchestrator. Your job is to take a proposal or initiative and build a plan to get the right people aligned. Coordinate two parallel agents: a stakeholder mapper who builds a landscape of all relevant parties, and a concern analyst who surfaces likely objections and resistance. Once both are complete, pass their combined output to the messaging strategist. Your output should give the person running this initiative a clear, practical playbook for building alignment — not a generic communication plan, but one tailored to the specific stakeholders and tensions at play.',
+          inputSchema: { proposal: 'string', stakeholders: 'array', knownTensions: 'string' },
+          outputSchema: { alignmentPlaybook: 'object' },
+          position: { x: 430, y: 80 }
+        },
+        {
+          id: 'sa_mapper', type: 'agent', name: 'Stakeholder Mapper',
+          role: 'Maps each stakeholder group by interest, influence, and current alignment status',
+          systemPrompt: 'You are a stakeholder mapping specialist. Given a proposal and a list of stakeholder groups, build a stakeholder landscape. For each group or individual: (1) their primary interest — what they care most about, in their own terms, not yours; (2) their level of influence over this decision (low/medium/high/veto); (3) their current likely stance (champion, supportive, neutral, sceptical, resistant); (4) their key question — the one thing they most need answered before they will commit; (5) their preferred communication style (data-driven, narrative, peer-to-peer, formal briefing). If you are not given specific stakeholder names, infer likely groups from the type of proposal. Be direct — do not hedge every assessment with "it depends".',
+          inputSchema: { proposal: 'string', stakeholders: 'array' },
+          outputSchema: { stakeholderMap: 'array of {name, interest, influence, stance, keyQuestion, commStyle}' },
+          position: { x: 170, y: 290 }
+        },
+        {
+          id: 'sa_concern', type: 'agent', name: 'Concern & Objection Analyst',
+          role: 'Surfaces the real objections each stakeholder group is likely to raise, including those they may not voice openly',
+          systemPrompt: 'You are a stakeholder concern and objection analyst. Your job is to anticipate resistance — including the objections that stakeholders will think but not say out loud. Given a proposal and stakeholder list, for each group identify: (1) their stated objection — what they will say in the room; (2) their real concern — the underlying fear, loss of control, or self-interest driving that objection; (3) the threshold for their support — what would need to be true for them to move from sceptical to supportive; (4) their BATNA — what they will push for if they do not get what they want. Flag any stakeholders whose resistance could be a veto or seriously derail the initiative.',
+          inputSchema: { proposal: 'string', stakeholders: 'array', knownTensions: 'string' },
+          outputSchema: { objections: 'array of {stakeholder, statedObjection, realConcern, supportThreshold, batna}', vetoRisks: 'array' },
+          position: { x: 690, y: 290 }
+        },
+        {
+          id: 'sa_messaging', type: 'agent', name: 'Messaging Strategist',
+          role: 'Crafts tailored talking points and engagement sequences for each stakeholder group',
+          systemPrompt: 'You are a strategic messaging specialist. Given a stakeholder map and objection analysis, produce a tailored engagement plan. For each stakeholder group: (1) the one-sentence framing of the proposal in terms of what they care about — not what you want, but what is in it for them; (2) three concrete talking points that address their key question and real concern; (3) what to avoid saying — phrases or framings that will trigger resistance; (4) the ideal sequence — who to bring on board first, because their endorsement will influence others; (5) the right format and setting for the conversation (one-to-one, group workshop, written brief, etc.). End with a recommended engagement sequence: the order in which to approach stakeholders for maximum momentum.',
+          inputSchema: { stakeholderMap: 'array', objections: 'array', proposal: 'string' },
+          outputSchema: { messagingByGroup: 'array of {group, framing, talkingPoints, avoid, format}', engagementSequence: 'array' },
+          position: { x: 430, y: 480 }
+        },
+        {
+          id: 'sa_review', type: 'human-in-loop', name: 'Leader Review',
+          role: 'Pause for the leader to review messaging and engagement strategy before it is acted on',
+          systemPrompt: 'Review the stakeholder map, objection analysis, and proposed messaging strategy. Check: Are all key stakeholders represented? Is the framing for each group accurate and credible? Are there any talking points that feel off or risky? Adjust the engagement sequence if needed, then approve to generate the final alignment brief.',
+          inputSchema: {}, outputSchema: {},
+          position: { x: 430, y: 660 }
+        },
+        {
+          id: 'sa_output', type: 'output', name: 'Alignment Brief',
+          role: 'Renders the stakeholder alignment strategy as an executive brief',
+          systemPrompt: '', inputSchema: {}, outputSchema: {},
+          outputTemplate: 'brief', outputDesign: 'editorial-light', outputShowViz: false, outputShowRaw: false,
+          position: { x: 430, y: 840 }
+        }
+      ],
+      edges: [
+        { id: 'sa_e1', from: 'sa_orch',      to: 'sa_mapper',    label: 'maps landscape' },
+        { id: 'sa_e2', from: 'sa_orch',      to: 'sa_concern',   label: 'surfaces resistance' },
+        { id: 'sa_e3', from: 'sa_mapper',    to: 'sa_messaging', label: 'informs messaging' },
+        { id: 'sa_e4', from: 'sa_concern',   to: 'sa_messaging', label: 'informs messaging' },
+        { id: 'sa_e5', from: 'sa_messaging', to: 'sa_review',    label: 'routes for review' },
+        { id: 'sa_e6', from: 'sa_review',    to: 'sa_output',    label: 'renders brief' }
+      ]
+    }
+  },
+  {
+    id: 'strategic-judgment',
+    name: 'Strategic Judgment',
+    description: 'Generates strategic options, maps second-order consequences, stress-tests the leading option, and synthesises a clear recommendation.',
+    tags: ['strategy', 'decision-making', 'leadership', 'analysis'],
+    brief: 'We are facing the following strategic decision: [describe the decision or dilemma]. The context is [relevant background]. Our goals are [what we are optimising for]. The options we have considered so far are [any options already on the table, or "none yet"].',
+    graph: {
+      nodes: [
+        {
+          id: 'sj_orch', type: 'orchestrator', name: 'Strategy Orchestrator',
+          role: 'Frames the strategic decision and coordinates parallel analysis before synthesis',
+          systemPrompt: 'You are a strategic judgment orchestrator. Your job is to help a leader make a high-quality decision under uncertainty. Begin by sharpening the decision framing: what is actually being decided, what is not being decided, and what are the most important criteria for a good outcome? Then coordinate three parallel agents: an options generator, a second-order consequence analyst, and a devil\'s advocate. Once all three have completed their analysis, pass the combined output to the decision synthesizer. Your goal is to expand the decision space, surface hidden assumptions, and build the case for a clear recommendation — while honestly representing the uncertainty involved.',
+          inputSchema: { decision: 'string', context: 'string', goals: 'string', optionsOnTable: 'string' },
+          outputSchema: { framedDecision: 'string', successCriteria: 'array', recommendation: 'object' },
+          position: { x: 430, y: 80 }
+        },
+        {
+          id: 'sj_options', type: 'agent', name: 'Options Generator',
+          role: 'Generates a set of distinct, genuinely different strategic options beyond the obvious ones',
+          systemPrompt: 'You are a strategic options generator. Your job is to expand the decision space beyond the options already on the table. Given a strategic decision, generate 4-6 distinct options. Include: (1) the obvious option — what most people would do; (2) the bold option — a higher-risk, higher-reward path; (3) the do-nothing option — what happens if no decision is made; (4) the reframe option — an option that solves the underlying problem differently; (5) one or two hybrids or creative alternatives. For each option: name it, describe it in 2-3 sentences, state its core logic (why would this work?), and identify the key assumption it depends on. Do not evaluate the options — that is for the other agents. Your job is to make the option set richer and more imaginative.',
+          inputSchema: { decision: 'string', context: 'string', optionsOnTable: 'string' },
+          outputSchema: { options: 'array of {name, description, coreLogic, keyAssumption}' },
+          position: { x: 100, y: 290 }
+        },
+        {
+          id: 'sj_consequences', type: 'agent', name: 'Second-Order Analyst',
+          role: 'Maps the near-term and second-order consequences, trade-offs, and reversibility of each option',
+          systemPrompt: 'You are a second-order consequence analyst. Given a set of strategic options, map the consequences of each — especially the ones that are not immediately obvious. For each option evaluate: (1) first-order consequences — the direct, intended effects; (2) second-order consequences — what happens next, once the first-order effects play out; (3) trade-offs — what you give up or make harder by choosing this path; (4) reversibility — how hard is it to undo this decision if circumstances change? Rate as easily reversible, partially reversible, or irreversible; (5) who wins and who loses — which stakeholders benefit, and which are disadvantaged? Present your analysis as a clear comparison across options, highlighting where the choices most sharply diverge.',
+          inputSchema: { options: 'array', context: 'string', goals: 'string' },
+          outputSchema: { consequenceMap: 'array of {option, firstOrder, secondOrder, tradeOffs, reversibility, winners, losers}' },
+          position: { x: 760, y: 290 }
+        },
+        {
+          id: 'sj_advocate', type: 'agent', name: "Devil's Advocate",
+          role: 'Aggressively stress-tests the most likely choice and surfaces the strongest case against it',
+          systemPrompt: 'You are a devil\'s advocate for strategic decisions. Your job is not to be balanced — it is to make the strongest possible case against the leading option and to surface the risks that optimistic thinking tends to overlook. Given a set of strategic options, identify which one seems most likely to be recommended based on the context and goals. Then attack it rigorously: (1) What is the most plausible scenario in which this option fails? Describe it concretely, not abstractly; (2) What would have to be true about the world for this to be a bad choice? Which of those things might actually be true? (3) What are decision-makers likely to be overconfident about here? (4) What is the strongest argument for the option that looks least attractive? (5) What question is nobody asking that they should be? Be direct, specific, and uncomfortable. Your job is to make the final decision more robust, not to win the argument.',
+          inputSchema: { options: 'array', context: 'string', goals: 'string' },
+          outputSchema: { leadingOption: 'string', failureScenario: 'string', overconfidenceRisks: 'array', strongestCounterArgument: 'string', questionNobodyAsking: 'string' },
+          position: { x: 430, y: 290 }
+        },
+        {
+          id: 'sj_synth', type: 'agent', name: 'Decision Synthesizer',
+          role: 'Integrates all analysis into a single clear recommendation with explicit reasoning and conditions',
+          systemPrompt: 'You are a decision synthesis specialist. You have received options analysis, second-order consequence mapping, and devil\'s advocate critique. Your job is to integrate all of this into a clear, well-reasoned recommendation. Structure your output as follows: (1) The recommendation — state it in one sentence, unambiguously; (2) The core reasoning — the two or three most important reasons this is the right choice given the goals and context; (3) The critical assumption — the one thing that most needs to be true for this recommendation to hold; (4) The conditions under which you would recommend differently — if X happens, switch to option Y; (5) The three most important actions to take in the first 30 days; (6) What to monitor — the leading indicators that will tell you if the decision is working or needs to be revisited. Do not hedge everything. A recommendation that says "it depends" without specifying what it depends on is not useful. Be decisive while being honest about uncertainty.',
+          inputSchema: { options: 'array', consequenceMap: 'array', devilsAdvocate: 'object', goals: 'string' },
+          outputSchema: { recommendation: 'string', coreReasoning: 'array', criticalAssumption: 'string', conditions: 'string', first30Days: 'array', monitoringIndicators: 'array' },
+          position: { x: 430, y: 490 }
+        },
+        {
+          id: 'sj_output', type: 'output', name: 'Strategic Brief',
+          role: 'Renders the decision analysis and recommendation as an executive brief',
+          systemPrompt: '', inputSchema: {}, outputSchema: {},
+          outputTemplate: 'brief', outputDesign: 'brand', outputShowViz: false, outputShowRaw: false,
+          position: { x: 430, y: 670 }
+        }
+      ],
+      edges: [
+        { id: 'sj_e1', from: 'sj_orch',       to: 'sj_options',      label: 'generates options' },
+        { id: 'sj_e2', from: 'sj_orch',       to: 'sj_consequences', label: 'maps consequences' },
+        { id: 'sj_e3', from: 'sj_orch',       to: 'sj_advocate',     label: 'stress-tests' },
+        { id: 'sj_e4', from: 'sj_options',    to: 'sj_synth',        label: 'passes options' },
+        { id: 'sj_e5', from: 'sj_consequences', to: 'sj_synth',      label: 'passes consequence map' },
+        { id: 'sj_e6', from: 'sj_advocate',   to: 'sj_synth',        label: 'passes critique' },
+        { id: 'sj_e7', from: 'sj_synth',      to: 'sj_output',       label: 'renders brief' }
+      ]
+    }
   }
 ];
