@@ -24,13 +24,8 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install Rust stable
+      - name: Install Rust (reads src-tauri/rust-toolchain.toml)
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Add macOS universal binary targets
-        run: |
-          rustup target add aarch64-apple-darwin
-          rustup target add x86_64-apple-darwin
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
