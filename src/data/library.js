@@ -1,0 +1,17 @@
+export const LIBRARY = [
+  { type: 'orchestrator',  label: 'Orchestrator',    desc: 'Coordinates agents and manages the overall workflow.' },
+  { type: 'agent',         label: 'Data Ingester',   desc: 'Monitors sources and ingests raw data.' },
+  { type: 'agent',         label: 'Triage Agent',    desc: 'Classifies and routes incoming items by priority.' },
+  { type: 'agent',         label: 'Analyst Agent',   desc: 'Processes domain data and extracts insights.' },
+  { type: 'agent',         label: 'Synthesis Agent', desc: 'Aggregates inputs from multiple agents into a unified output.' },
+  { type: 'agent',         label: 'Decision Agent',  desc: 'Evaluates options and selects actions based on criteria.' },
+  { type: 'agent',         label: 'Error Handler',   desc: 'Catches failures and implements fallback or retry logic.' },
+  { type: 'tool',          label: 'API Caller',      desc: 'Executes calls to external services or REST APIs.' },
+  { type: 'tool',          label: 'Scheduler',       desc: 'Triggers agents on a time-based or event-based schedule.' },
+  { type: 'memory',        label: 'Memory Store',    desc: 'Persists and retrieves state for agents across invocations.' },
+  { type: 'router',        label: 'Router',          desc: 'Directs flow to different paths based on conditions or LLM decision.' },
+  { type: 'evaluator',     label: 'Evaluator',       desc: 'Scores or judges upstream output against defined criteria.' },
+  { type: 'human-in-loop', label: 'Human Review',    desc: 'Pauses the pipeline and requests explicit human approval.' },
+  { type: 'infranodus',    label: 'InfraNodus',      desc: 'Builds a knowledge graph from text and returns topics, gaps, and insights.' },
+  { type: 'output',        label: 'Output',           desc: 'Renders pipeline output in a rich, designed template — brief, report, table, slides, and more.' },
+];
