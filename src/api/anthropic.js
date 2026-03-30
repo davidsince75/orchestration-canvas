@@ -9,7 +9,7 @@
  * TODO Phase 3: node execution already goes through run_graph in Rust.
  * Architect calls are now also through Rust. No CORS workaround remains.
  */
-import { ARCHITECT_SYSTEM_PROMPT, ARCHITECT_ANALYSIS_PROMPT, ARCHITECT_FIX_PROMPT } from '../data/systemPrompts.js';
+import { ARCHITECT_SYSTEM_PROMPT, ARCHITECT_ANALYSIS_PROMPT, ARCHITECT_FIX_PROMPT, ARCHITECT_GENERATE_PROMPT } from '../data/systemPrompts.js';
 
 async function tauriInvoke(cmd, args) {
   if (!window.__TAURI_INTERNALS__) {
@@ -83,6 +83,43 @@ export async function callArchitectFix(apiKey, graph, diagnostics) {
   const text  = raw.trim();
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   return JSON.parse(fence ? fence[1] : text);
+}
+
+export async function callArchitectGenerate(apiKey, description) {
+  const raw = await tauriInvoke('call_architect', {
+    req: {
+      model:        'claude-sonnet-4-6',
+      maxTokens:    4096,
+      systemPrompt: ARCHITECT_GENERATE_PROMPT,
+      messages:     [{ role: 'user', content: description.trim() }],
+      apiKey,
+    },
+  });
+
+  const text  = raw.trim();
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const parsed = JSON.parse(fence ? fence[1] : text);
+
+  // Normalise: ensure every node has required fields with safe defaults
+  parsed.nodes = (parsed.nodes || []).map((n, idx) => ({
+    id:           n.id           || `node_${idx}`,
+    type:         n.type         || 'agent',
+    name:         n.name         || `Node ${idx + 1}`,
+    role:         n.role         || '',
+    systemPrompt: n.systemPrompt || '',
+    inputSchema:  n.inputSchema  || {},
+    outputSchema: n.outputSchema || {},
+    position:     n.position     || { x: 100 + idx * 240, y: 300 },
+  }));
+
+  parsed.edges = (parsed.edges || []).map((e, idx) => ({
+    id:    e.id    || `e_${idx}`,
+    from:  e.from  || '',
+    to:    e.to    || '',
+    label: e.label || '',
+  })).filter(e => e.from && e.to);
+
+  return parsed;
 }
 
 export function parseGraph(text) {

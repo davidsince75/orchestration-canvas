@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import React from 'react';
 import { NODE_STYLES } from '../data/nodeStyles.js';
-import { callArchitectAnalysis, callArchitectFix } from '../api/anthropic.js';
+import { callArchitectAnalysis, callArchitectFix, callArchitectGenerate } from '../api/anthropic.js';
 import { snapToGrid, findCriticalPath } from '../utils/graph.js';
 import { useToast } from './ToastProvider.jsx';
 
 export function ArchitectPanel({ graph, validIssues, apiKey, onAddNodeFull, onHighlight, onUpdateGraph, onClose }) {
-  const [tab,     setTab]     = useState('diagnose');
+  const [tab,     setTab]     = useState('build');
   const [loading, setLoading] = useState(false);
   const [result,  setResult]  = useState(null);
   const [error,   setError]   = useState('');
@@ -16,6 +16,13 @@ export function ArchitectPanel({ graph, validIssues, apiKey, onAddNodeFull, onHi
   const [fixLoading,  setFixLoading]  = useState(false);
   const [fixError,    setFixError]    = useState('');
   const [fixApplied,  setFixApplied]  = useState(false);
+
+  // Build tab state
+  const [buildDesc,    setBuildDesc]    = useState('');
+  const [buildResult,  setBuildResult]  = useState(null);
+  const [buildLoading, setBuildLoading] = useState(false);
+  const [buildError,   setBuildError]   = useState('');
+  const [buildApplied, setBuildApplied] = useState(false);
 
   const toast = useToast();
 
@@ -90,6 +97,27 @@ export function ArchitectPanel({ graph, validIssues, apiKey, onAddNodeFull, onHi
     toast('Fix applied', 'success');
   };
 
+  const runBuild = async () => {
+    if (!apiKey.trim()) { setBuildError('Add your API key in the top bar first.'); return; }
+    if (!buildDesc.trim()) { setBuildError('Describe what you want your pipeline to do.'); return; }
+    setBuildLoading(true); setBuildError(''); setBuildResult(null); setBuildApplied(false);
+    try {
+      const data = await callArchitectGenerate(apiKey, buildDesc);
+      setBuildResult(data);
+    } catch (err) {
+      setBuildError('Generation failed: ' + err.message);
+    } finally {
+      setBuildLoading(false);
+    }
+  };
+
+  const applyBuild = () => {
+    if (!buildResult) return;
+    onUpdateGraph({ nodes: buildResult.nodes, edges: buildResult.edges });
+    setBuildApplied(true);
+    toast(`Pipeline "${buildResult.title || 'New pipeline'}" applied — ${buildResult.nodes.length} nodes`, 'success');
+  };
+
   const fixPatchCount   = fixResult ? (fixResult.patches   || []).length : 0;
   const fixAddCount     = fixResult ? (fixResult.addEdges   || []).length : 0;
   const fixRemoveCount  = fixResult ? (fixResult.removeEdges|| []).length : 0;
@@ -102,9 +130,9 @@ export function ArchitectPanel({ graph, validIssues, apiKey, onAddNodeFull, onHi
         <button className="arch-close" onClick={onClose}>×</button>
       </div>
       <div className="arch-tabs">
-        {['diagnose', 'questions', 'recommend', 'fix'].map(t => (
+        {['build', 'diagnose', 'questions', 'recommend', 'fix'].map(t => (
           <button key={t} className={`arch-tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-            {t === 'diagnose' ? 'Diagnose' : t === 'questions' ? 'Ask' : t === 'recommend' ? 'Suggest' : 'Fix'}
+            {t === 'build' ? '✦ Build' : t === 'diagnose' ? 'Diagnose' : t === 'questions' ? 'Ask' : t === 'recommend' ? 'Suggest' : 'Fix'}
           </button>
         ))}
       </div>
@@ -178,6 +206,96 @@ export function ArchitectPanel({ graph, validIssues, apiKey, onAddNodeFull, onHi
               </button>
             )}
           </>
+        )}
+
+        {tab === 'build' && (
+          <div className="arch-build">
+            {!buildResult && !buildLoading && (
+              <>
+                <div className="arch-build-hint">
+                  Describe what you want your pipeline to do — in plain English. The Architect will design and build it for you.
+                </div>
+                <textarea
+                  className="arch-build-textarea"
+                  placeholder={`e.g. "I want a pipeline that takes a company name, researches it online, analyses sentiment, and produces an investment brief" or "Build me a content moderation pipeline for a social platform"`}
+                  value={buildDesc}
+                  onChange={e => setBuildDesc(e.target.value)}
+                  rows={6}
+                />
+              </>
+            )}
+            {buildLoading && (
+              <div className="loading-row">
+                <div className="spinner" />
+                <span>Designing your pipeline…</span>
+              </div>
+            )}
+            {buildError && <div className="error-msg">{buildError}</div>}
+
+            {buildResult && !buildApplied && (
+              <>
+                <div className="arch-build-preview-title">
+                  {buildResult.title || 'Generated Pipeline'}
+                </div>
+                {buildResult.description && (
+                  <div className="arch-build-preview-desc">{buildResult.description}</div>
+                )}
+                <span className="panel-heading" style={{ marginTop: 8 }}>
+                  {buildResult.nodes.length} nodes · {buildResult.edges.length} edges
+                </span>
+                <div className="arch-build-node-list">
+                  {buildResult.nodes.map((n, i) => {
+                    const s = NODE_STYLES[n.type] || NODE_STYLES.agent;
+                    return (
+                      <div key={n.id} className="arch-build-node-item">
+                        <div className="arch-build-node-dot" style={{ background: s.border }} />
+                        <div>
+                          <div className="arch-build-node-name">{n.name}</div>
+                          <div className="arch-build-node-role">{n.role}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button className="arch-run-btn" onClick={applyBuild} style={{ marginTop: 10 }}>
+                  ✦ Apply Pipeline to Canvas
+                </button>
+                <button
+                  className="arch-apply-btn"
+                  onClick={() => { setBuildResult(null); setBuildApplied(false); }}
+                  style={{ marginTop: 4 }}
+                >
+                  ← Edit description
+                </button>
+              </>
+            )}
+
+            {buildApplied && (
+              <>
+                <div className="arch-issue ok">
+                  ✓ Pipeline applied — {buildResult?.nodes.length} nodes added to canvas
+                </div>
+                <button
+                  className="arch-apply-btn"
+                  onClick={() => { setBuildDesc(''); setBuildResult(null); setBuildApplied(false); setBuildError(''); }}
+                  style={{ marginTop: 8 }}
+                >
+                  Build another pipeline
+                </button>
+              </>
+            )}
+
+            {!buildLoading && !buildResult && (
+              <button
+                className="arch-run-btn"
+                onClick={runBuild}
+                disabled={buildLoading || !buildDesc.trim()}
+                style={{ marginTop: 8 }}
+              >
+                {buildLoading ? 'Building…' : '✦ Build Pipeline'}
+              </button>
+            )}
+          </div>
         )}
 
         {tab === 'fix' && (
