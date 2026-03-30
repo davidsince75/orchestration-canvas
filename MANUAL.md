@@ -22,6 +22,7 @@
 14. [Export, Import & Run History](#14-export-import--run-history)
 15. [Keyboard Shortcuts & Tips](#15-keyboard-shortcuts--tips)
 16. [Troubleshooting](#16-troubleshooting)
+17. [Template Input Guide](#17-template-input-guide)
 
 ---
 
@@ -469,8 +470,13 @@ Open the **Templates** drawer from the top bar. Each template is a complete, run
 | **Data Analysis Pipeline** | Ingest → clean → analyse → visualise → Data Table |
 | **Multi-Agent Debate** | Topic → Agent A (for) → Agent B (against) → judge → Report |
 | **DevOps Monitor** | Alert → log analysis → diagnosis → fix recommendation → Report |
+| **Implementation Leadership** | Initiative → scope & milestones + risks + resource plan → feasibility stress-test → Execution Plan |
+| **Stakeholder Alignment** | Proposal → stakeholder map + objection analysis → tailored messaging → human review → Alignment Brief |
+| **Strategic Judgment** | Decision → options + consequences + devil's advocate → synthesis → Strategic Brief |
 
 All templates include pre-filled system prompts, schemas, and example briefs. Every field is editable after loading.
+
+> **Writing a good brief matters more than any other single factor.** See [Section 17](#17-template-input-guide) for the optimal input for every template.
 
 ---
 
@@ -577,6 +583,244 @@ Check that the `.json` file contains a top-level `nodes` array and an `edges` ar
 ### GitHub Actions build takes 15–20 minutes
 
 This is expected on the first run — Rust compiles the entire dependency tree from scratch. Subsequent runs use the cache and typically finish in 4–6 minutes.
+
+---
+
+## 17. Template Input Guide
+
+The quality of a pipeline run is almost entirely determined by what you put in the Brief panel. This section gives you the optimal input structure for every template — what information to provide, and why each piece matters.
+
+A general rule applies to all templates: **be specific about context, constraints, and what you will use the output for.** The agents read your brief before doing anything — the more they know, the better calibrated their output.
+
+---
+
+### Research Assistant
+
+**What it needs:** A specific, answerable research question and a desired depth.
+
+```
+Research question: What are the most effective interventions for reducing employee
+burnout in remote-first tech companies?
+
+Depth: deep
+
+Focus on evidence from 2020 onwards. I want peer-reviewed sources where possible,
+not just opinion pieces.
+```
+
+**Why specificity matters:** The Web Search Agent generates 2–3 search queries from your question. "Tell me about burnout" produces shallow queries. "What interventions reduce burnout in remote-first tech companies" produces targeted ones that retrieve far better sources.
+
+---
+
+### Customer Support Pipeline
+
+**What it needs:** A realistic support ticket with user context and the channel it arrived on.
+
+```
+Ticket: My subscription renewed yesterday for £149 but I cancelled it three weeks ago.
+I have the cancellation confirmation email. I want a full refund immediately.
+
+User ID: usr_48291
+Channel: email
+Prior tickets: 0
+```
+
+**Why channel and history matter:** The Triage Agent uses the channel to calibrate tone (email = formal, chat = conversational) and the prior ticket count to assess urgency. Without them it defaults to generic middle-ground responses.
+
+---
+
+### Code Review System
+
+**What it needs:** A PR URL or pasted diff, the language, and what to prioritise.
+
+```
+PR: https://github.com/myorg/api/pull/247
+Repo: myorg/api
+Branch: feature/auth-refresh-tokens
+Language: TypeScript / Node.js
+
+Context: This PR adds JWT refresh token rotation. Security is the top priority —
+please pay particular attention to token invalidation logic and any race conditions
+in the rotation flow.
+```
+
+**Why the priority instruction matters:** Without it, the Code Analysis Agent gives equal weight to style violations, bugs, and security issues. Telling it what matters most focuses the findings where they count.
+
+---
+
+### Content Creation Pipeline
+
+**What it needs:** A full content brief — topic, audience, format, tone, word count, and what to avoid.
+
+```
+Topic: Why most B2B SaaS onboarding fails in the first 7 days — and what to do about it
+Audience: SaaS founders and heads of product at 50–500 person companies
+Format: blog post
+Tone: Direct, practitioner voice — not academic, not hype. Like a smart colleague
+explaining something they have figured out.
+Word count: 1,200
+Must include: the "activation moment" concept, at least one concrete example,
+a 3-step framework in the conclusion
+Avoid: generic advice about "personalisation"
+```
+
+**Why tone and "avoid" matter most:** These two fields have the largest impact on output quality. Without them the Writer Agent produces polished but generic content. With them it has an editorial compass.
+
+---
+
+### RAG Pipeline
+
+**What it needs:** A specific, answerable question. Also: configure the Vector Search Tool node with your actual endpoint before running.
+
+```
+Question: What does our employee handbook say about the approval process for
+expenses over £500?
+
+Top K: 5
+```
+
+**Important:** This template only produces useful output once you have wired the Vector Search Tool node to a real vector database containing your documents. Without that connection, treat it as a design pattern to build on rather than a ready-to-run pipeline.
+
+---
+
+### Data Processing Pipeline
+
+**What it needs:** Source description, transformation rules as concrete instructions, validation criteria, and the target destination.
+
+```
+Source: Salesforce export — accounts and contacts CSV, approximately 12,000 rows
+Batch size: 500
+
+Transformation rules:
+- Merge first_name + last_name into full_name
+- Normalise country codes to ISO 3166-1 alpha-2
+- Derive tier field: revenue > 100k = enterprise, > 10k = mid-market, else SMB
+
+Validation:
+- email must be present and valid format
+- account_id must not be null
+- revenue must be a positive number
+
+Target: PostgreSQL table: crm.accounts (upsert on account_id)
+```
+
+**Why concrete rules matter:** Vague transformation rules like "clean the data" produce vague outputs. The Transformer and Validator agents need specific, testable criteria to produce specific, testable results.
+
+---
+
+### Multi-Agent Debate
+
+**What it needs:** A clear arguable proposition (not a question), context about what the conclusion will be used for, and the number of debate rounds.
+
+```
+Proposition: Organisations should eliminate annual performance reviews entirely
+and replace them with continuous feedback only.
+
+Context: We are a 200-person professional services firm considering changing our
+performance management approach. We want to understand the strongest arguments
+on both sides before deciding.
+
+Rounds: 1
+```
+
+**Why proposition framing matters:** The Advocate Agent needs something to argue *for*, not a question to answer. "Should organisations eliminate performance reviews?" produces a balanced essay. "Organisations should eliminate performance reviews" produces a genuine advocacy — and a genuine critique from the Devil's Advocate.
+
+---
+
+### DevOps Monitor
+
+**What it needs:** An alert payload with service name, environment, current metrics, and — critically — any recent deployments.
+
+```
+Alert: HTTP 5xx error rate on checkout-service exceeded 5% threshold (currently 12%)
+Service: checkout-service
+Environment: production
+Recent deployments: v2.4.1 deployed at 14:32 UTC (35 minutes ago)
+Current metrics: p99 latency 4.2s (up from 340ms baseline), error rate 12%,
+CPU normal, memory normal
+On-call engineer: @sarah-ops
+```
+
+**Why recent deployments matter most:** The Diagnostic Agent specifically looks for deployment correlation when forming its root cause hypothesis. Without this information it falls back to generic infrastructure checks and produces a much weaker diagnosis.
+
+---
+
+### Implementation Leadership
+
+**What it needs:** The initiative name and goal, real budget and timeline numbers, team composition, and any known risks or dependencies.
+
+```
+Initiative: Launch a self-serve customer onboarding portal to replace our current
+manual white-glove process.
+
+Outcome: Customers can go live without a CSM touchpoint for deals under £10k ARR.
+Reduce time-to-value from 14 days to 3 days.
+
+Constraints:
+- Budget: £180k total
+- Timeline: must be live within 5 months
+- Team: 2 engineers (part-time), 1 product manager, 1 designer (contractor)
+- Dependency: Legal sign-off on data handling required before build starts
+
+Known risks: engineering team has no experience with our identity provider (Auth0)
+```
+
+**Why real numbers matter:** The Feasibility Evaluator scores the plan from 0–10 and identifies failure modes. Vague constraints like "limited budget" produce a vague score. Real numbers produce a real assessment — including whether the timeline is achievable with the team described.
+
+---
+
+### Stakeholder Alignment
+
+**What it needs:** The specific ask (what you need them to agree to), who the stakeholders are with their known positions, and any existing tensions.
+
+```
+Proposal: Move our entire customer data infrastructure from on-premise servers to AWS.
+Timeline: 18 months.
+
+The key ask: Approval from the Executive Committee to proceed with a £2.4M investment
+and a 6-month migration of production systems.
+
+Stakeholder groups:
+- CEO (sponsor — supportive but worried about risk during migration)
+- CFO (sceptical — wants ROI case, wants Year 1 cost neutral)
+- CTO (champion — led the proposal)
+- Head of Security (concerned about compliance during transition)
+- VP of Engineering (anxious about workload on his teams)
+- Head of Customer Success (worried about downtime affecting customers)
+
+Known tensions: CFO and CTO have clashed before on infrastructure investment.
+Security team has veto power if compliance cannot be demonstrated upfront.
+```
+
+**Why existing tensions and veto power matter:** The Concern & Objection Analyst distinguishes between stated objections and real underlying concerns. The more specific you are about who holds veto power and where past conflicts exist, the more targeted and credible the messaging strategy becomes.
+
+---
+
+### Strategic Judgment
+
+**What it needs:** The actual decision framed as a choice, the relevant context with real numbers, what you are optimising for, options already on the table, and what the output will be used for.
+
+```
+Decision: Whether to expand into the US market now, wait 12 months until we reach
+profitability in the UK, or pursue a partnership/licensing route instead.
+
+Context: UK-based B2B SaaS, £3.2M ARR, growing 80% YoY, currently pre-profitability
+with 18 months runway. We have inbound interest from 3 US enterprise prospects.
+Two competitors entered the US last year — one is struggling, one is growing fast.
+
+Goals: Preserve runway. Capture market share before the category gets crowded.
+We are not optimising for a quick exit — we want to build a durable business.
+
+Options already on the table:
+1. Hire a US-based VP of Sales now and open a San Francisco office
+2. Wait until Q3 next year when we project profitability
+
+What this will be used for: Board presentation in 3 weeks.
+```
+
+**Why "what this will be used for" matters:** The Decision Synthesiser calibrates the language, formality, and framing of its recommendation based on the audience. Board presentation language is precise and concise. Internal team discussion language is exploratory. Without this context it defaults to a middle ground that fits neither well.
+
+**Why listing options already on the table matters:** The Options Generator is instructed to go *beyond* the obvious options. If you do not tell it what you have already considered, it will spend time restating them rather than finding the creative reframe or the path nobody has named yet.
 
 ---
 
