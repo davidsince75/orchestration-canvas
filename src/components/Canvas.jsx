@@ -204,6 +204,7 @@ export function Canvas({ graph, selectedId, selectedEdgeId, highlightedIds,
             edges={graph.edges}
             selectedEdgeId={selectedEdgeId}
             draggingEdge={draggingEdge}
+            nodeRunStates={nodeRunStates}
           />
           {graph.nodes.map(node => (
             <NodeCard
