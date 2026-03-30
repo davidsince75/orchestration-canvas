@@ -26,6 +26,7 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 [profile.release]
 panic = "abort"
 codegen-units = 1
-lto = true
+lto = "thin"
 opt-level = "s"
-strip = true
+# strip = true is intentionally omitted — it breaks universal binary
+# creation on macOS because lipo cannot merge pre-stripped objects.
