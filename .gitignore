@@ -33,6 +33,16 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Playwright test output
+playwright-report/
+test-results/
+
+# Built app installers
+*.dmg
+*.app
+*.exe
+*.msi
+
 # Generated icon variants we don't ship (mobile / Windows Store)
 src-tauri/icons/ios/
 src-tauri/icons/android/
