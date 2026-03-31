@@ -95,9 +95,9 @@ Return ONLY valid JSON — no prose, no markdown, no code fences. The JSON must 
       "type": "orchestrator|agent|tool|memory|router|evaluator|human-in-loop|infranodus",
       "name": "string (concise, descriptive display name)",
       "role": "string (one sentence: what this node does)",
-      "systemPrompt": "string (detailed, specific system prompt — 2-5 sentences, written for this exact use case)",
-      "inputSchema": { "fieldName": "type and description" },
-      "outputSchema": { "fieldName": "type and description" },
+      "systemPrompt": "string (specific system prompt for this use case — 1-2 sentences max)",
+      "inputSchema": { "fieldName": "type" },
+      "outputSchema": { "fieldName": "type" },
       "position": { "x": number, "y": number }
     }
   ],
@@ -131,7 +131,7 @@ Layout rules — assign x/y positions so nodes never overlap (minimum 220px hori
 Design principles:
 1. Always include an orchestrator as the entry point
 2. Always include an output node (type: agent, name contains "Output" or "Report") unless the pipeline is a pure router
-3. Write system prompts that are specific to the use case — not generic. Name the domain, the audience, the expected output format.
+3. Write system prompts that are specific to the use case — not generic. Keep them to 1-2 sentences.
 4. Size the pipeline to the complexity of the request: simple requests get 3-5 nodes, complex pipelines get 6-10 nodes
 5. Every node should have at least one incoming edge (except the orchestrator) and one outgoing edge (except the output node)
 6. Use meaningful edge labels that describe what data or signal flows along the edge`;

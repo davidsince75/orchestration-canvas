@@ -37,7 +37,7 @@ export function RunBriefPanel({ brief, setBrief, onRun, onStop, isRunning, runSt
   const statusColour = isDone      ? '#4ade80'
     : isError     ? '#ff6b6b'
     : isCancelled ? '#facc15'
-    : '#a78bfa';
+    : '#60a5fa';
 
   return (
     <div className="left-panel run-brief-panel">
@@ -69,9 +69,9 @@ export function RunBriefPanel({ brief, setBrief, onRun, onStop, isRunning, runSt
         <textarea
           style={{
             flex: 1,
-            background:  canEdit ? '#20202e' : '#1a1a28',
-            border:      `1px solid ${canEdit ? '#2e2e40' : '#1e1e30'}`,
-            color:       canEdit ? '#d8d8d8' : '#888',
+            background:  canEdit ? 'var(--surface-2)' : 'var(--surface-1)',
+            border:      `1px solid ${canEdit ? 'var(--border-strong)' : 'var(--border)'}`,
+            color:       canEdit ? 'var(--text-primary)' : 'var(--text-tertiary)',
             padding:     '10px',
             borderRadius:'6px',
             fontSize:    '12px',
@@ -102,7 +102,7 @@ export function RunBriefPanel({ brief, setBrief, onRun, onStop, isRunning, runSt
             className="btn-generate"
             onClick={onRun}
             disabled={!brief.trim()}
-            style={{ background: !brief.trim() ? '#2a2a3e' : undefined }}
+            style={{ background: !brief.trim() ? 'var(--surface-3)' : undefined }}
           >
             ▶ Run Pipeline
           </button>

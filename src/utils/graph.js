@@ -1,4 +1,26 @@
-import { SNAP } from '../data/nodeStyles.js';
+import { SNAP, NODE_W, NODE_H } from '../data/nodeStyles.js';
+
+const CANVAS_W = 2400;
+const CANVAS_H = 1600;
+
+/**
+ * Returns a new nodes array where the bounding-box centre aligns with the
+ * canvas centre (1200, 800), snapped to the grid.
+ */
+export function centerNodesInCanvas(nodes) {
+  if (!nodes || nodes.length === 0) return nodes;
+  const minX = Math.min(...nodes.map(n => n.position.x));
+  const maxX = Math.max(...nodes.map(n => n.position.x)) + NODE_W;
+  const minY = Math.min(...nodes.map(n => n.position.y));
+  const maxY = Math.max(...nodes.map(n => n.position.y)) + NODE_H;
+  const dx = Math.round((CANVAS_W / 2 - (minX + maxX) / 2) / SNAP) * SNAP;
+  const dy = Math.round((CANVAS_H / 2 - (minY + maxY) / 2) / SNAP) * SNAP;
+  if (dx === 0 && dy === 0) return nodes;
+  return nodes.map(n => ({
+    ...n,
+    position: { x: n.position.x + dx, y: n.position.y + dy },
+  }));
+}
 
 export const snapToGrid = (x, y) => ({
   x: Math.round(x / SNAP) * SNAP,

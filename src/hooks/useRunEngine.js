@@ -95,7 +95,16 @@ export function useRunEngine(graph, apiKey, brief, onError) {
         setRunState(prev => prev ? { ...prev, mode: 'cancelled' } : prev);
         setPendingReview(null);
       }),
-      onHumanReview(payload => setPendingReview(payload)),
+      onHumanReview(payload => {
+        // If the node has bypass enabled, auto-approve immediately without showing the modal
+        const node = graph.nodes.find(n => n.id === payload.nodeId);
+        if (node?.humanBypass) {
+          respondHumanReview(payload.runId, payload.nodeId, true, 'Auto-approved (bypass enabled)')
+            .catch(() => {});
+          return;
+        }
+        setPendingReview(payload);
+      }),
     ]);
     unlistenersRef.current = [u1, u2, u3, u4, u5, u6, u7];
 
@@ -114,12 +123,21 @@ export function useRunEngine(graph, apiKey, brief, onError) {
   const stopExecution = useCallback(async () => {
     const runId = runIdRef.current;
     if (!runId) return;
+    // If the Rust thread is blocked waiting for a human review response,
+    // it will never see the cancellation watch channel. Reject the review
+    // first to unblock the thread, then cancel the run.
+    if (pendingReview) {
+      try {
+        await respondHumanReview(pendingReview.runId, pendingReview.nodeId, false, 'Run stopped by user');
+      } catch { /* best-effort */ }
+      setPendingReview(null);
+    }
     try {
       await cancelRun(runId);
     } catch {
       // best-effort — the run may have already finished
     }
-  }, []);
+  }, [pendingReview]);
 
   const clearRun = useCallback(() => {
     clearListeners();

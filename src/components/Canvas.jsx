@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { NODE_W, NODE_H } from '../data/nodeStyles.js';
 import { snapToGrid, isNearLine } from '../utils/graph.js';
 import { getEdgePoints } from '../utils/geometry.js';
@@ -33,6 +33,17 @@ export function Canvas({ graph, selectedId, selectedEdgeId, highlightedIds,
   const dragEdgeRef = useRef(null);
   const [draggingEdge, setDraggingEdge] = useState(null);
   const [rubberBand,   setRubberBand]   = useState(null);
+
+  // Scroll canvas to centre (1200, 800) on first mount
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const targetScrollLeft = (CANVAS_W / 2) * zoom - el.clientWidth  / 2;
+    const targetScrollTop  = (CANVAS_H / 2) * zoom - el.clientHeight / 2;
+    el.scrollLeft = Math.max(0, targetScrollLeft);
+    el.scrollTop  = Math.max(0, targetScrollTop);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const canvasCoords = useCallback((e) => {
     const rect = wrapperRef.current.getBoundingClientRect();

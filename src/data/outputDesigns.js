@@ -14,7 +14,7 @@ export const OUTPUT_DESIGNS = [
       '--out-border':       '#2a2a3e',
       '--out-text':         '#e0e0f0',
       '--out-text-muted':   '#6b6b8a',
-      '--out-heading':      '#a78bfa',
+      '--out-heading':      '#60a5fa',
       '--out-accent':       '#6366f1',
       '--out-accent-soft':  'rgba(99,102,241,0.12)',
       '--out-bullet':       '#4c4c6a',

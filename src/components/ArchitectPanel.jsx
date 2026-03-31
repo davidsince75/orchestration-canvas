@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import React from 'react';
 import { NODE_STYLES } from '../data/nodeStyles.js';
 import { callArchitectAnalysis, callArchitectFix, callArchitectGenerate } from '../api/anthropic.js';
-import { snapToGrid, findCriticalPath } from '../utils/graph.js';
+import { snapToGrid, findCriticalPath, centerNodesInCanvas } from '../utils/graph.js';
 import { useToast } from './ToastProvider.jsx';
 
 export function ArchitectPanel({ graph, validIssues, apiKey, onAddNodeFull, onHighlight, onUpdateGraph, onClose, suggestedDesc }) {
@@ -124,7 +124,7 @@ export function ArchitectPanel({ graph, validIssues, apiKey, onAddNodeFull, onHi
 
   const applyBuild = () => {
     if (!buildResult) return;
-    onUpdateGraph({ nodes: buildResult.nodes, edges: buildResult.edges });
+    onUpdateGraph({ nodes: centerNodesInCanvas(buildResult.nodes), edges: buildResult.edges });
     setBuildApplied(true);
     toast(`Pipeline "${buildResult.title || 'New pipeline'}" applied — ${buildResult.nodes.length} nodes`, 'success');
   };
@@ -143,7 +143,8 @@ export function ArchitectPanel({ graph, validIssues, apiKey, onAddNodeFull, onHi
       <div className="arch-tabs">
         {['build', 'diagnose', 'questions', 'recommend', 'fix'].map(t => (
           <button key={t} className={`arch-tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-            {t === 'build' ? '✦ Build' : t === 'diagnose' ? 'Diagnose' : t === 'questions' ? 'Ask' : t === 'recommend' ? 'Suggest' : 'Fix'}
+            {t === 'build' && <span style={{ fontSize: 8, opacity: 0.8 }}>✦</span>}
+            {t === 'build' ? 'Build' : t === 'diagnose' ? 'Diagnose' : t === 'questions' ? 'Ask' : t === 'recommend' ? 'Suggest' : 'Fix'}
           </button>
         ))}
       </div>

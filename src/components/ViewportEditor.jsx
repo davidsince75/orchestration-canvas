@@ -35,6 +35,7 @@ const HELP = {
   humanPrompt:       'Instructions shown to the human reviewer — describe what they need to decide and what context they have.',
   humanTimeout:      'Minutes before the pipeline auto-proceeds. Set to 0 to wait indefinitely.',
   humanOnTimeout:    'What to do if the reviewer does not respond within the timeout.',
+  humanBypass:       'When enabled, this node is automatically approved during runs — useful for testing pipelines without stopping at every checkpoint.',
   infranodusKey:     'Your InfraNodus API key. Stored in the node — will be included in JSON exports.',
   infranodusOp:      'Which analysis to run on the incoming text.',
   infranodusGraph:   'Optional: save results to a named InfraNodus graph for future reference. Leave blank for a temporary analysis.',
@@ -508,6 +509,18 @@ export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDel
                 <option value="auto-approve">Auto-approve</option>
                 <option value="auto-reject">Auto-reject</option>
               </select>
+            </div>
+            <div className="field-group">
+              <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={!!node.humanBypass}
+                  onChange={e => up('humanBypass', e.target.checked)}
+                  style={{ width: 14, height: 14, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                />
+                Bypass Review (auto-approve during runs)
+              </label>
+              <div className="field-hint">Enable during testing to skip this checkpoint without stopping the pipeline.</div>
             </div>
           </>
         )}

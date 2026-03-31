@@ -4,17 +4,19 @@ import { VizPanel } from './VizPanel.jsx';
 import { OutputRenderer } from './OutputRenderer.jsx';
 
 const STATUS_BADGE = {
-  pending:   { label: '○ Pending',   color: '#555577' },
-  running:   { label: '⟳ Running',   color: '#a78bfa' },
+  pending:   { label: '○ Pending',   color: '#4a5568' },
+  running:   { label: '⟳ Running',   color: '#60a5fa' },
+  review:    { label: '⏸ Awaiting Review', color: '#f97316' },
   done:      { label: '✓ Done',      color: '#4ade80' },
   error:     { label: '✕ Error',     color: '#ff6b6b' },
   cancelled: { label: '⊘ Skipped',   color: '#facc15' },
 };
 
-function NodeOutput({ node, state }) {
+function NodeOutput({ node, state, isAwaiting }) {
   const [open, setOpen]       = useState(false);
   const [vizOpen, setVizOpen] = useState(false);
-  const badge = STATUS_BADGE[state?.status || 'pending'];
+  const badgeKey = isAwaiting ? 'review' : (state?.status || 'pending');
+  const badge = STATUS_BADGE[badgeKey] || STATUS_BADGE.pending;
 
   // Auto-expand when node finishes (always for output nodes; toggle for others)
   useEffect(() => {
@@ -51,7 +53,7 @@ function NodeOutput({ node, state }) {
     <div
       className="run-output-node"
       style={{
-        border:       `1px solid ${state?.status === 'running' ? '#a78bfa' : '#2a2a3e'}`,
+        border:       `1px solid ${isAwaiting ? '#f97316' : state?.status === 'running' ? '#60a5fa' : 'var(--border-strong)'}`,
         borderRadius: 8,
         marginBottom: 8,
         overflow:     'hidden',
@@ -66,7 +68,7 @@ function NodeOutput({ node, state }) {
           gap:        8,
           padding:    '8px 12px',
           cursor:     (!isOutputNode && copyText) ? 'pointer' : 'default',
-          background: '#1a1a28',
+          background: 'var(--surface-1)',
           userSelect: 'none',
         }}
         onClick={() => !isOutputNode && copyText && setOpen(o => !o)}
@@ -111,8 +113,8 @@ function NodeOutput({ node, state }) {
 
       {/* Output node streaming placeholder while running */}
       {node.type === 'output' && state?.status === 'running' && (
-        <div style={{ padding: '12px 16px', background: '#13131f', borderTop: '1px solid #1e1e30' }}>
-          <pre style={{ color: '#a78bfa', fontSize: 12, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6', opacity: 0.8 }}>
+        <div style={{ padding: '12px 16px', background: 'var(--surface-1)', borderTop: '1px solid var(--border)' }}>
+          <pre style={{ color: '#60a5fa', fontSize: 12, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6', opacity: 0.8 }}>
             {state?.partialOutput || ''}
             {isStreaming && <StreamCursor />}
           </pre>
@@ -121,7 +123,7 @@ function NodeOutput({ node, state }) {
 
       {/* ── All other nodes: viz + raw pre ── */}
       {node.type !== 'output' && open && (displayText || state?.error) && (
-        <div style={{ padding: '10px 12px', background: '#13131f', position: 'relative' }}>
+        <div style={{ padding: '10px 12px', background: 'var(--surface-1)', position: 'relative' }}>
           {state?.status === 'error' ? (
             <pre style={{ color: '#ff6b6b', fontSize: 11, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
               {state.error}
@@ -167,7 +169,7 @@ function StreamCursor() {
         display:         'inline-block',
         width:           '2px',
         height:          '1em',
-        background:      '#a78bfa',
+        background:      '#60a5fa',
         marginLeft:      1,
         verticalAlign:   'text-bottom',
         animation:       'stream-cursor-blink 0.8s step-end infinite',
@@ -177,7 +179,7 @@ function StreamCursor() {
   );
 }
 
-export function RunOutputPanel({ graph, runState }) {
+export function RunOutputPanel({ graph, runState, pendingReview }) {
   const scrollRef     = useRef(null);
   const lastScrollRef = useRef(0);
   const nodeStates    = runState?.nodeStates || new Map();
@@ -215,11 +217,13 @@ export function RunOutputPanel({ graph, runState }) {
   const summaryColor = mode === 'done'      ? '#4ade80'
     : mode === 'error'     ? '#ff6b6b'
     : mode === 'cancelled' ? '#facc15'
-    : '#a78bfa';
+    : pendingReview        ? '#f97316'
+    : '#60a5fa';
 
   const summaryLabel = mode === 'done'      ? 'Run complete'
     : mode === 'error'     ? 'Completed with errors'
     : mode === 'cancelled' ? 'Run cancelled'
+    : pendingReview        ? '⏸ Awaiting your review'
     : 'Running…';
 
   return (
@@ -229,7 +233,7 @@ export function RunOutputPanel({ graph, runState }) {
     >
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px 0', gap: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 13, letterSpacing: 1, color: '#a78bfa', flex: 1 }}>
+        <span style={{ fontWeight: 700, fontSize: 13, letterSpacing: 1, color: '#60a5fa', flex: 1 }}>
           OUTPUT
         </span>
         {runState && (
@@ -272,12 +276,13 @@ export function RunOutputPanel({ graph, runState }) {
         ) : (
           graph.nodes.map(node => {
             const state = nodeStates.get(node.id);
+            const isAwaiting = pendingReview?.nodeId === node.id;
             return (
               <div
                 key={node.id}
                 data-running={state?.status === 'running' ? 'true' : undefined}
               >
-                <NodeOutput node={node} state={state} />
+                <NodeOutput node={node} state={state} isAwaiting={isAwaiting} />
               </div>
             );
           })

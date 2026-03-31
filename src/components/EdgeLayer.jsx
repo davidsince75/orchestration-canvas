@@ -12,7 +12,7 @@ import { NODE_W, NODE_H } from '../data/nodeStyles.js';
 
 const PARTICLE_CFG = {
   idle:    { dur: 5.0, count: 2, r: 2,   color: '#4a4a72', opacity: 0.50, glow: false },
-  active:  { dur: 1.1, count: 3, r: 2.5, color: '#a78bfa', opacity: 1.00, glow: true  },
+  active:  { dur: 1.1, count: 3, r: 2.5, color: '#60a5fa', opacity: 1.00, glow: true  },
   done:    { dur: 2.8, count: 2, r: 2,   color: '#4ade80', opacity: 0.70, glow: false },
   error:   { dur: 2.0, count: 2, r: 2,   color: '#ff6b6b', opacity: 0.70, glow: false },
   skipped: { dur: 6.0, count: 1, r: 1.5, color: '#facc15', opacity: 0.30, glow: false },

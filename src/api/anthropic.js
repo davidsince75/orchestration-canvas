@@ -174,7 +174,7 @@ export async function callArchitectGenerate(apiKey, description) {
   const raw = await tauriInvoke('call_architect', {
     req: {
       model:        'claude-sonnet-4-6',
-      maxTokens:    4096,
+      maxTokens:    8192,
       systemPrompt: ARCHITECT_GENERATE_PROMPT,
       messages:     [{ role: 'user', content: description.trim() }],
       apiKey,
@@ -183,7 +183,15 @@ export async function callArchitectGenerate(apiKey, description) {
 
   const text  = raw.trim();
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const parsed = JSON.parse(fence ? fence[1] : text);
+  let parsed;
+  try {
+    parsed = JSON.parse(fence ? fence[1] : text);
+  } catch (e) {
+    if (e.message?.includes('Unterminated') || e.message?.includes('Unexpected end')) {
+      throw new Error('The pipeline was too large to generate in one response. Try a simpler description with fewer nodes, or break it into smaller parts.');
+    }
+    throw new Error('Generation failed: ' + e.message);
+  }
 
   // Normalise: ensure every node has required fields with safe defaults
   parsed.nodes = (parsed.nodes || []).map((n, idx) => ({

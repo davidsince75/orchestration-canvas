@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useGraphHistory } from './hooks/useGraphHistory.js';
 import { useRunEngine } from './hooks/useRunEngine.js';
-import { validateGraph, isInputFocused } from './utils/graph.js';
+import { validateGraph, isInputFocused, centerNodesInCanvas } from './utils/graph.js';
 import { secureGet, secureSet } from './utils/secureStore.js';
 import { dbGet, dbSet, dbDel } from './utils/db.js';
 import { useToast } from './components/ToastProvider.jsx';
@@ -223,7 +223,8 @@ export function App() {
 
   const handleLoadTemplate = useCallback((template) => {
     if (graph.nodes.length > 0 && !window.confirm(`Load "${template.name}"? Current canvas will be replaced.`)) return;
-    setGraph(template.graph); setBrief(template.brief);
+    const centred = { ...template.graph, nodes: centerNodesInCanvas(template.graph.nodes) };
+    setGraph(centred); setBrief(template.brief);
     setSelectedId(null); setShowTemplates(false);
     toast(`Template "${template.name}" loaded`, 'success');
   }, [graph.nodes.length, setGraph]);
@@ -320,7 +321,7 @@ export function App() {
           />
         )}
         {runMode === 'run' && (
-          <RunOutputPanel graph={graph} runState={runState} />
+          <RunOutputPanel graph={graph} runState={runState} pendingReview={pendingReview} />
         )}
         {historyOpen && (
           <RunHistoryPanel graph={graph} onClose={() => setHistoryOpen(false)} />
@@ -336,7 +337,7 @@ export function App() {
             onUpdateGraph={handleUpdateGraph}
             onDeleteNode={handleDeleteNode}
             apiKey={apiKey}
-            generating={loading}
+            generating={false}
             prefs={prefs}
           />
         )}

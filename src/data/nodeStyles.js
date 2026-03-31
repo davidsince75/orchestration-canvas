@@ -3,7 +3,7 @@ export const NODE_H = 80;
 export const SNAP = 20;
 
 export const NODE_STYLES = {
-  orchestrator:  { border: '#a855f7', fill: '#1a0f2e', badge: '#c084fc', badgeBg: 'rgba(147,51,234,0.18)' },
+  orchestrator:  { border: '#3b82f6', fill: '#0d1929', badge: '#93c5fd', badgeBg: 'rgba(59,130,246,0.18)' },
   agent:         { border: '#10b981', fill: '#0a1f17', badge: '#34d399', badgeBg: 'rgba(16,185,129,0.15)' },
   tool:          { border: '#f59e0b', fill: '#1c1508', badge: '#fbbf24', badgeBg: 'rgba(245,158,11,0.15)' },
   memory:        { border: '#38bdf8', fill: '#0a1825', badge: '#7dd3fc', badgeBg: 'rgba(56,189,248,0.15)' },

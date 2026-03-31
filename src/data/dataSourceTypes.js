@@ -54,7 +54,7 @@ export const DATA_SOURCE_TYPES = [
 export const ACCESS_MODES = [
   { id: 'read',       label: 'Read',       color: '#38bdf8' },
   { id: 'write',      label: 'Write',      color: '#f59e0b' },
-  { id: 'read-write', label: 'Read+Write', color: '#a855f7' },
+  { id: 'read-write', label: 'Read+Write', color: '#3b82f6' },
 ];
 
 export function getSourceType(id) {

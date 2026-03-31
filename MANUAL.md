@@ -1,6 +1,6 @@
 # Orchestration Canvas — User Manual
 
-**Version 0.1.0**
+**Version 0.3.0**
 
 ---
 
@@ -11,18 +11,19 @@
 3. [Interface Overview](#3-interface-overview)
 4. [Node Types](#4-node-types)
 5. [Building a Pipeline](#5-building-a-pipeline)
-6. [LLM Providers](#6-llm-providers)
-7. [Data Sources](#7-data-sources)
-8. [Memory Nodes](#8-memory-nodes)
-9. [Output Nodes](#9-output-nodes)
-10. [Running a Pipeline](#10-running-a-pipeline)
-11. [Human-in-Loop Review](#11-human-in-loop-review)
-12. [Starter Templates](#12-starter-templates)
-13. [InfraNodus Integration](#13-infranodus-integration)
-14. [Export, Import & Run History](#14-export-import--run-history)
-15. [Keyboard Shortcuts & Tips](#15-keyboard-shortcuts--tips)
-16. [Troubleshooting](#16-troubleshooting)
-17. [Template Input Guide](#17-template-input-guide)
+6. [AI Features — Architect, Draft & Infer](#6-ai-features--architect-draft--infer)
+7. [LLM Providers](#7-llm-providers)
+8. [Data Sources](#8-data-sources)
+9. [Memory Nodes](#9-memory-nodes)
+10. [Output Nodes](#10-output-nodes)
+11. [Running a Pipeline](#11-running-a-pipeline)
+12. [Human-in-Loop Review](#12-human-in-loop-review)
+13. [Starter Templates](#13-starter-templates)
+14. [InfraNodus Integration](#14-infranodus-integration)
+15. [Export, Import & Run History](#15-export-import--run-history)
+16. [Keyboard Shortcuts & Tips](#16-keyboard-shortcuts--tips)
+17. [Troubleshooting](#17-troubleshooting)
+18. [Template Input Guide](#18-template-input-guide)
 
 ---
 
@@ -37,6 +38,8 @@ Think of it as a flowchart builder where every box is an AI agent that can reaso
 | Capability | Details |
 |---|---|
 | Visual pipeline design | Drag-and-drop canvas with 9 node types |
+| AI pipeline generation | Describe what you want in plain English — Architect builds the graph |
+| AI-assisted authoring | Draft system prompts, infer schemas, generate test inputs with one click |
 | Multi-provider LLM support | Claude, GPT-4o, Gemini, Mistral, Ollama (local) |
 | Live streaming output | Token-by-token preview with blinking cursor |
 | Persistent memory | Local session memory or Letta (MemGPT) cloud/self-hosted |
@@ -49,56 +52,45 @@ Think of it as a flowchart builder where every box is an AI agent that can reaso
 
 ## 2. Quickstart — Your First Pipeline in 5 Minutes
 
-This section gets you from zero to a running pipeline as fast as possible.
-
 ### Step 1 — Enter your API key
 
-In the **top bar**, find the key icon and paste your **Anthropic API key** (starts with `sk-ant-`). It is stored locally on your machine only and never sent anywhere except Anthropic's API.
+In the **top bar**, paste your **Anthropic API key** (starts with `sk-ant-`). It is stored locally on your machine only.
 
-### Step 2 — Load a starter template
+### Step 2 — Describe your pipeline
 
-Click the **Templates** button in the top bar. Choose **Research Assistant**. The canvas will populate with a pre-built pipeline of 6 nodes already wired together.
+The **Architect** panel opens automatically on an empty canvas. Type what you want the pipeline to do in plain English:
 
-### Step 3 — Write your brief
+> A research assistant that searches the web, summarises findings, and writes a briefing document
 
-The **Brief** panel (left side) contains a pre-filled prompt. Replace it with your actual question, for example:
+Click **✦ Build Pipeline**. Architect calls Claude, designs the graph, and shows you a preview. Click **Apply to Canvas** to place the nodes.
+
+Alternatively, click any of the **example prompt buttons** on the empty canvas to pre-fill the Architect with a common starting point.
+
+### Step 3 — Write your prompt
+
+Switch to **Run** mode using the toggle in the top bar. The left panel changes to a **Prompt** input. Type the question or task for this run:
 
 > What are the main bottlenecks in transformer-based language model inference?
 
+Click **✦ Suggest input** if you want Architect to generate a sample prompt tailored to your pipeline.
+
 ### Step 4 — Click Run Pipeline
 
-Press **▶ Run Pipeline** at the bottom of the Brief panel. The **Output** panel (right side) opens and each node lights up in sequence, streaming its output in real time.
+Press **▶ Run Pipeline**. The **Output** panel opens on the right and each node streams its output in real time.
 
 ### Step 5 — Read the output
 
-When the last node completes, the Output panel renders a formatted **Research Brief** with an executive summary, key findings, recommendations, and next steps.
-
-That is it. You have run your first pipeline.
+When the last node completes, the Output panel renders the formatted result.
 
 ---
 
-### Quickstart — Build from scratch (3 minutes)
-
-If you prefer to build manually rather than use a template:
+### Quickstart — Build manually (3 minutes)
 
 1. **Clear the canvas** — click the trash icon in the top bar.
-
-2. **Drag three nodes** from the **Library** panel onto the canvas:
-   - One **Orchestrator**
-   - One **Agent** (rename it "Analyst")
-   - One **Output**
-
-3. **Connect them** — hover over the bottom edge of a node until a blue handle appears, then drag it to the top of the next node:
-   - Orchestrator → Analyst
-   - Analyst → Output
-
-4. **Configure the Analyst node** — click it to open the Node Designer. Set:
-   - **System prompt:** `You are a concise analyst. Given a question, provide a 3-paragraph analysis with a clear conclusion.`
-   - **Provider:** Claude (Anthropic)
-   - **Model:** Claude Sonnet 4.6
-
-5. **Write a brief** in the Brief panel.
-
+2. **Drag three nodes** from the **Library** panel: Orchestrator, Agent (rename it "Analyst"), Output.
+3. **Connect them** — hover over a node until handles appear, then drag edge to edge: Orchestrator → Analyst → Output.
+4. **Configure the Analyst node** — click to open Node Designer. Set System prompt, Provider, Model.
+5. **Write a prompt** in Run mode's Prompt panel.
 6. **Click Run Pipeline**.
 
 ---
@@ -106,122 +98,111 @@ If you prefer to build manually rather than use a template:
 ## 3. Interface Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  TOP BAR   [ Templates ] [ API Key ] [ Export ] [ Prefs ]  [ ▶ ]│
-├──────────┬──────────────────────────────────────┬───────────────┤
-│          │                                      │               │
-│  LEFT    │           CANVAS                     │   RIGHT       │
-│  PANEL   │   (nodes + edges + minimap)          │   PANEL       │
-│          │                                      │               │
-│  Brief   │                                      │  Node         │
-│  ──────  │                                      │  Designer     │
-│  Library │                                      │  ──────────   │
-│  ──────  │                                      │  Output       │
-│  History │                                      │  Panel        │
-│          │                                      │               │
-└──────────┴──────────────────────────────────────┴───────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  TOP BAR   [ Design | Run ] [ Templates ] [ API Key ] [ Export ] …   │
+├──────────┬───────────────────────────────────────────┬───────────────┤
+│          │                                           │               │
+│  LEFT    │              CANVAS                       │   RIGHT       │
+│  PANEL   │   (nodes + edges + minimap)               │   PANEL       │
+│          │                                           │               │
+│  Context │                                           │  Architect    │
+│  ──────  │                                           │  ──────────   │
+│  Library │                                           │  Node         │
+│  ──────  │                                           │  Designer     │
+│  History │                                           │  ──────────   │
+│          │                                           │  Output       │
+│          │                                           │  Panel        │
+└──────────┴───────────────────────────────────────────┴───────────────┘
 ```
 
 ### Top Bar
 
 | Element | Purpose |
 |---|---|
-| **Templates** | Load one of 8 starter pipelines |
-| **API Key** | Enter your Anthropic API key (global; used by all Claude nodes) |
+| **Design / Run** | Toggle between pipeline editing and execution mode |
+| **Templates** | Load one of the starter pipelines |
+| **API Key** | Enter your Anthropic API key |
 | **Export / Import** | Save or load your pipeline as a JSON file |
 | **Preferences** | App-wide settings |
-| **▶ Run Pipeline** | Execute the current graph with the current brief |
+| **▶ Run Pipeline** | Execute the current graph |
 | **■ Stop** | Cancel a running pipeline |
-| **Undo / Redo** | Step through edit history (Ctrl+Z / Ctrl+Y) |
+| **Undo / Redo** | Ctrl+Z / Ctrl+Y |
 
-### Left Panel
+### Left Panel (Design mode)
 
-**Brief** — A plain-text area where you write the initial prompt. This is fed as input to the first node when you run the pipeline. Think of it as the question or task for the entire pipeline.
+**Context** — A plain-text area for background information that you want available across the pipeline. This is separate from the per-run prompt.
 
-**Library** — All 9 node types available to drag onto the canvas. Each entry shows the type, label, and a short description.
+**Library** — All 9 node types available to drag onto the canvas.
 
 **Run History** — A log of previous runs. Click any entry to replay its output.
 
+### Left Panel (Run mode)
+
+**Prompt** — Write the initial input for this run. Click **✦ Suggest input** to have AI generate a sample prompt for your pipeline.
+
 ### Canvas
 
-The main working area. You can:
-- **Pan** — click and drag on the background
-- **Zoom** — Ctrl+scroll or pinch
-- **Select a node** — click it to open the Node Designer
-- **Move nodes** — drag by their header
-- **Delete** — select and press Delete or Backspace
-- **Connect nodes** — drag from the output handle of one node to the input handle of another
+The main working area. Pan, zoom, drag nodes, connect handles, select and delete. A **Minimap** in the bottom-right corner shows the full graph at a glance. The canvas scrolls to its centre on launch, and all generated or loaded pipelines are automatically centred.
 
-A **Minimap** in the bottom-right corner shows the full graph at a glance. Click it to jump to that region.
+### Right Panel — Architect
+
+A five-tab AI assistant:
+
+| Tab | What it does |
+|---|---|
+| **Build** | Generate a complete pipeline from a plain-English description |
+| **Diagnose** | List structural issues: missing prompts, cycles, orphaned nodes |
+| **Ask** | Answer questions about your pipeline design |
+| **Suggest** | Recommend improvements to the current graph |
+| **Fix** | Auto-patch nodes that have validation errors |
 
 ### Right Panel — Node Designer
 
-When you click a node, the Node Designer opens on the right and shows all configurable fields for that node type: system prompt, provider, model, data sources, memory settings, output template, and so on.
+When you click a node on the canvas, the Node Designer opens. It shows all configurable fields for that node type plus AI-assist buttons (✦ Draft, ✦ Improve, ✦ Infer).
 
 ### Right Panel — Output Panel
 
-During and after a run, the Output Panel replaces the Node Designer and shows live streaming output for each node in the graph.
+During and after a run, the Output Panel shows live streaming output for each node with status badges and an expand/collapse toggle.
 
 ---
 
 ## 4. Node Types
 
-### 🟣 Orchestrator
+### 🔵 Orchestrator
 
-The entry point of your pipeline. It receives the initial brief, coordinates downstream nodes, and is typically responsible for the high-level reasoning about how to decompose the task. Every pipeline should begin with one.
+The entry point of your pipeline. It receives the initial prompt, coordinates downstream nodes, and handles high-level task decomposition. Every pipeline should begin with one.
 
-Configure: Role, System prompt, Input/Output schema, Provider, Model.
+### 🟢 Agent
 
-### 🔵 Agent
+A general-purpose LLM node. Agents do the primary work: analysis, writing, summarisation, classification, extraction, translation.
 
-A general-purpose LLM node. Agents do the primary work: analysis, writing, summarisation, classification, extraction, translation — anything you can describe in a system prompt.
+### 🟡 Tool
 
-Configure the same fields as Orchestrator, plus **Data Sources** (see Section 7).
+Represents an external service call — a REST API, database query, or webhook. Documents the endpoint and schema; at runtime forwards its input to the endpoint and passes the response downstream.
 
-### 🔧 Tool
+### 🔵 Memory
 
-Represents an external service call — a REST API, a database query, or a webhook. Tool nodes document the endpoint and schema. At runtime the node forwards its input to the configured endpoint and passes the response downstream.
+Persists and retrieves state across runs. Backends: local (session) or Letta (persistent cloud/self-hosted).
 
-Configure: Endpoint (e.g. `POST /api/search`), Input/Output schema.
+### 🟠 Router
 
-### 💾 Memory
+Conditional branching. Examines input and directs flow to one downstream branch based on a plain-language condition. Unselected branches are marked Skipped.
 
-Persists and retrieves state across pipeline runs. Two backends are available:
+### 🩵 Evaluator
 
-- **Local** — in-process session memory, cleared when the app closes
-- **Letta** — cloud or self-hosted MemGPT for truly persistent, searchable memory (see Section 8)
+Scores or judges upstream output against criteria you define. Returns a score and reasoning. Use as a quality gate.
 
-### 🔀 Router
+### 🔴 Human Review
 
-A conditional branching node. The Router examines its input and directs flow to one of its connected downstream nodes based on a condition you define in plain language. Useful for "if urgent → escalate, else → auto-reply" style logic.
+Pauses the pipeline and surfaces a review modal. Execution does not continue until you Approve or Reject. Can be bypassed during testing — see [Section 12](#12-human-in-loop-review).
 
-Configure: Routing condition, branch labels on each outbound edge.
+### 💙 InfraNodus
 
-### ⚖️ Evaluator
+Sends text to the InfraNodus API and returns a knowledge graph with top concepts, structural gaps, and research questions. Output includes an interactive constellation visualisation.
 
-Scores or judges the output of an upstream node against criteria you define. Returns a score and a reasoning string. Use it as a quality gate before presenting output to the user.
+### 🟡 Output
 
-Configure: Evaluation criteria (accuracy, tone, completeness, safety, etc.), pass threshold.
-
-### 👤 Human Review
-
-Pauses the pipeline and surfaces a review dialog. Execution will not continue until you click **Approve** or **Reject**. If you reject, you can provide written feedback that is injected into the next node's context.
-
-Configure: Instructions for the reviewer, Timeout in minutes (0 = wait forever).
-
-### 🌐 InfraNodus
-
-Sends its input text to the InfraNodus API, which builds a knowledge graph and returns the top concepts, structural gaps, and research questions. Output automatically includes an interactive constellation visualisation in the Output Panel.
-
-Configure: InfraNodus API key, Analysis mode.
-
-### 📄 Output
-
-A terminal node that renders the final pipeline output in a rich document layout. Output nodes do not call an LLM — they format and display what they receive from upstream nodes.
-
-Configure: Template (Brief, Report, Data Table, etc.), Design (Dark Minimal, Editorial Light, etc.).
-
-See Section 9 for full details.
+A terminal node that renders the final pipeline result in a rich document layout. Does not call an LLM — formats and displays what arrives from upstream.
 
 ---
 
@@ -229,37 +210,73 @@ See Section 9 for full details.
 
 ### Adding nodes
 
-Drag any item from the **Library** panel onto the canvas. The node appears at the drop location.
+Drag any item from the **Library** panel onto the canvas.
 
 ### Renaming nodes
 
-Click a node to open the Node Designer, then edit the **Name** field at the top.
+Click a node → edit the **Name** field in the Node Designer.
 
 ### Connecting nodes
 
-Hover over a node — connection handles (small circles) appear on its edges. Drag from the **bottom handle** of one node to the **top handle** of another to create a directed edge. Edges can be labelled: click an edge to select it and type a label in the inspector.
+Hover over a node — connection handles appear on its edges. Drag from the **bottom handle** of one node to the **top handle** of another. Click an edge to select it and type a label.
 
 ### Deleting
 
-Select a node or edge and press **Delete** or **Backspace**.
+Select a node or edge and press **Delete** or **Backspace**. Multi-select with Shift+click, then delete in one action.
 
 ### Execution order
 
-The pipeline runs in **topological order** — nodes with no upstream dependencies run first. A Router node splits the graph into branches; only the matching branch executes, and the others are marked Skipped.
+The pipeline runs in **topological order**. A Router splits the graph into branches; only the matching branch executes.
 
 ### Validation bar
 
-A bar at the bottom of the canvas shows warnings for problems such as disconnected nodes, missing required fields, or cycles. Resolve all warnings before running.
+A bar at the bottom of the canvas shows warnings for disconnected nodes, missing fields, or cycles. Resolve errors before running.
 
 ---
 
-## 6. LLM Providers
+## 6. AI Features — Architect, Draft & Infer
+
+### Build tab — Generate a pipeline from description
+
+Open the **Architect** panel (⬡ button in the top bar) and switch to the **Build** tab.
+
+Type a plain-English description of what you want the pipeline to do:
+
+> A competitive intelligence pipeline that monitors competitor pricing, analyses positioning changes, and produces a weekly digest with action recommendations
+
+Click **✦ Build Pipeline**. Architect calls Claude, designs the full graph (nodes, edges, positions, system prompts, schemas), and shows you a node list preview. If it looks right, click **Apply to Canvas**. Nodes are automatically centred on the canvas.
+
+**Tips:**
+- Be specific about what the output should look like: *"…and produces a .html file"*, *"…classified by urgency"*
+- Mention the domain, audience, or constraints you care about
+- If the first result has too many nodes, describe a simpler version
+
+### ✦ Draft / ✦ Improve — AI-written system prompts
+
+Click any Agent or Orchestrator node to open the Node Designer. Next to the **System Prompt** field you will see:
+
+- **✦ Draft** — appears when the field is empty. Click to generate a system prompt tailored to this node's role and its position in the graph.
+- **✦ Improve** — appears when the field already has content. Click to rewrite the existing prompt for clarity, specificity, and format.
+
+A preview appears below the field. Click **Apply** to stamp it in, or **Discard** to keep what you had.
+
+### ✦ Infer — Auto-generate schemas
+
+In the Node Designer for any Agent or Orchestrator, click **✦ Infer** next to the **Input/Output Schema** fields. Architect infers 2–4 typed fields based on the node's name, role, and system prompt.
+
+### ✦ Suggest input — Generate a test prompt
+
+In **Run mode**, if the Prompt field is empty, click **✦ Suggest input** (appears above the text area). Architect reads your pipeline graph and generates a concrete, realistic test input appropriate for that pipeline.
+
+---
+
+## 7. LLM Providers
 
 Each LLM node (Orchestrator, Agent, Router, Evaluator) can be assigned its own provider and model independently.
 
 ### Claude (Anthropic) — default
 
-Uses the **global API key** from the top bar. No per-node key needed.
+Uses the **global API key** from the top bar.
 
 | Model | Best for |
 |---|---|
@@ -269,9 +286,7 @@ Uses the **global API key** from the top bar. No per-node key needed.
 
 ### OpenAI
 
-Requires an **OpenAI API key** (`sk-...`) entered in the node's provider settings.
-
-Available models: GPT-4o, GPT-4o Mini, GPT-4 Turbo, o1 Mini.
+Requires an **OpenAI API key** (`sk-...`) entered in the node's provider settings. Available models: GPT-4o, GPT-4o Mini, GPT-4 Turbo, o1 Mini.
 
 ### Gemini (Google)
 
@@ -285,162 +300,127 @@ Requires a **Mistral API key**. Available models: Mistral Large, Mistral Small, 
 
 Runs entirely on your machine. Requires [Ollama](https://ollama.com) to be installed and running.
 
-1. Install Ollama: `brew install ollama` (macOS) or download from ollama.com
+1. Install Ollama: `brew install ollama` (macOS)
 2. Pull a model: `ollama pull llama3.2`
 3. In the node designer set Provider to **Ollama**, URL to `http://localhost:11434`, and pick the model
 
-Available models: Llama 3.2, Llama 3.1, Mistral 7B, Gemma 2, Phi-3, DeepSeek R1, Qwen 2.5.
-
-> **Tip:** Mix providers within a single pipeline. Use Claude Opus on the Orchestrator where deep reasoning matters, and a local Ollama model on cheaper triage or formatting nodes.
+> **Tip:** Mix providers. Use Claude Opus on the Orchestrator where deep reasoning matters, and a local Ollama model on cheaper triage or formatting nodes.
 
 ---
 
-## 7. Data Sources
+## 8. Data Sources
 
-Any node can have one or more **data sources** attached. At runtime, the content of each source is prepended to the node's input — the LLM sees your data as context before generating its response.
+Any node can have one or more **data sources** attached. At runtime, the content of each source is prepended to the node's input.
 
 ### Adding a data source
 
-1. Click a node to open the Node Designer
-2. Scroll to **Data Sources** and click **+ Add Source**
-3. Choose the source type and fill in the path, URL, or connection string
-4. Set the **Access Mode**: Read, Write, or Read+Write
+1. Click a node → scroll to **Data Sources** → **+ Add Source**
+2. Choose the source type and fill in the path, URL, or connection string
+3. Set the **Access Mode**: Read, Write, or Read+Write
 
 ### Source types
 
 | Type | What it does |
 |---|---|
-| 📄 **File** | Reads any file: CSV, JSON, TXT, Markdown, etc. (50 KB cap per file) |
-| 📁 **Folder** | Reads all files in a directory and concatenates their contents |
-| 📊 **Spreadsheet** | Reads an Excel `.xlsx` file; optionally specify a sheet name |
-| 🌐 **URL / API** | Fetches a URL at runtime — REST API, webhook, or public dataset |
-| 🗄️ **Database** | Connects to a SQL/NoSQL database and returns table schema and metadata |
-
-### Access modes
-
-- **Read** — data is fetched and injected into the node's context before it runs
-- **Write** — the node's output is written back to the source after it runs
-- **Read+Write** — both
+| 📄 **File** | Reads any file: CSV, JSON, TXT, Markdown, etc. (50 KB cap) |
+| 📁 **Folder** | Reads all files in a directory and concatenates contents |
+| 📊 **Spreadsheet** | Reads an Excel `.xlsx` file; optionally specify a sheet |
+| 🌐 **URL / API** | Fetches a URL at runtime |
+| 🗄️ **Database** | Connects to a SQL/NoSQL database and returns schema/metadata |
 
 ---
 
-## 8. Memory Nodes
+## 9. Memory Nodes
 
-Memory nodes persist information across pipeline runs — not just within a single execution, but across separate sessions on different days.
+Memory nodes persist information across pipeline runs.
 
 ### Local memory (default)
 
-In-process, zero-config memory. Fast to set up but cleared when the app restarts. Good for prototyping or within-session state.
-
-Configure: Memory Type (Working, Long-term, Episodic), Access Mode.
+In-process, zero-config. Cleared when the app restarts. Good for prototyping.
 
 ### Letta memory (persistent)
 
-[Letta](https://letta.com) (formerly MemGPT) is a memory management system for LLM agents. It supports two modes:
+[Letta](https://letta.com) (formerly MemGPT) supports:
 
-**Archival (vector search)** — stores passages in a vector database and retrieves the most semantically relevant ones when queried. Best for knowledge bases and prior research.
-
-**Core Block (in-context)** — stores a named text block that is always in the agent's context window. Best for user profiles, preferences, or persistent facts.
+- **Archival (vector search)** — semantic retrieval from a vector database. Best for knowledge bases.
+- **Core Block (in-context)** — a named text block always in the agent's context. Best for user profiles or persistent facts.
 
 #### Setting up Letta
 
-**Option A — Self-hosted (free):**
 ```bash
+# Self-hosted (free)
 pip install letta
 letta server   # starts on http://localhost:8283
 ```
 
-**Option B — Letta Cloud:**
-Sign up at [app.letta.com](https://app.letta.com) and copy your API key.
+Or sign up at [app.letta.com](https://app.letta.com) and copy your API key.
 
 #### Configuring the node
 
-1. Click the Memory node to open the Node Designer
-2. Set **Memory Backend** to **Letta**
-3. Fill in:
-   - **API URL** — `http://localhost:8283` (self-hosted) or `https://api.letta.com` (cloud)
-   - **API Key** — leave blank for self-hosted; paste your key for cloud
-   - **Agent ID** — the Letta agent this node stores memory for (e.g. `agent-abc123`)
-   - **Memory Mode** — Archival or Core Block
-   - **Block Name** — (Core Block only) the label of the block, e.g. `user_profile`
+1. Click the Memory node → set **Memory Backend** to **Letta**
+2. Fill in API URL, API Key, Agent ID, Memory Mode, and (for Core Block) Block Name
 
 ---
 
-## 9. Output Nodes
+## 10. Output Nodes
 
-Output nodes render the final result of your pipeline in a polished document layout. They are always the last node in a pipeline and do not call an LLM — they format and display whatever arrives from upstream.
+Output nodes render the final result in a polished document layout. Always the last node; does not call an LLM.
 
 ### Templates
 
 | Template | Best for |
 |---|---|
 | 📄 **Brief** | Executive summary + key findings + recommendations + next steps |
-| 📊 **Report** | Long-form structured report: introduction, methodology, analysis, conclusion |
+| 📊 **Report** | Long-form structured report |
 | 🔬 **Research Summary** | Topic, abstract, key concepts, identified gaps, research questions |
-| 🗃️ **Data Table** | Renders structured JSON as a formatted, sortable HTML table |
-| 🎞️ **Slide Deck** | Paginated slide-style output — each section renders as a full-screen card |
-| ✏️ **Markdown Doc** | Full markdown renderer — headings, lists, code blocks, and links |
-| ⚙️ **Custom** | Define your own sections — mix text, markdown, list, and table blocks |
+| 🗃️ **Data Table** | Structured JSON rendered as a formatted HTML table |
+| 🎞️ **Slide Deck** | Paginated slide-style output |
+| ✏️ **Markdown Doc** | Full markdown renderer |
+| ⚙️ **Custom** | Define your own sections |
 
 ### Designs (visual themes)
 
 | Design | Style |
 |---|---|
-| **Dark Minimal** | Obsidian background, indigo accents, monospace body — default |
-| **Editorial Light** | Warm off-white, serif headings, generous spacing — print-ready feel |
-| **Brand** | Indigo/violet gradient header, amber accents — presentation-ready |
-| **Raw Markdown** | GitHub-style plain markdown, no decorative chrome |
-
-### Configuration
-
-In the Node Designer for an Output node:
-- **Template** — the document structure to use
-- **Design** — the visual theme to apply
-- **Show Raw Output** — also display the unformatted source text below the rendered view
-- **Show InfraNodus Viz** — display the constellation graph if an InfraNodus node feeds into this output
-
-### Copying output
-
-- **Copy** button — appears on each node row in the Output Panel
-- **Copy All** — top-right corner of the Output Panel; copies every node output joined together
+| **Dark Minimal** | Slate-grey background, blue accents, monospace body |
+| **Editorial Light** | Warm off-white, serif headings, print-ready feel |
+| **Brand** | Gradient header, amber accents — presentation-ready |
+| **Raw Markdown** | GitHub-style plain markdown |
 
 ---
 
-## 10. Running a Pipeline
+## 11. Running a Pipeline
 
 ### Before you run
 
-- Your **API key** must be set in the top bar
-- The **Validation Bar** should show no red warnings
-- The **Brief** panel should contain a meaningful prompt
+- **API key** must be set in the top bar
+- **Validation Bar** should show no red errors
+- **Prompt** panel should contain a meaningful input
 
 ### Node statuses
-
-Click **▶ Run Pipeline**. Each node transitions through:
 
 | Status | Meaning |
 |---|---|
 | ○ Pending | Waiting to execute |
-| ⟳ Running | Calling its LLM or tool; live output is streaming |
+| ⟳ Running | Calling its LLM or tool; output is streaming |
+| ⏸ Awaiting Review | Human-in-loop node waiting for your approval |
 | ✓ Done | Completed successfully |
 | ✕ Error | Failed — expand the row to read the error message |
 | ⊘ Skipped | Branch not taken by a Router node |
 
 ### Live streaming
 
-While a node is Running, its output streams token-by-token with a blinking purple cursor. The Output Panel scrolls automatically to keep the active node visible.
-
-When the node finishes, the cursor disappears and the status changes to Done. For Output nodes, the full rendered document appears at this point.
+While a node is Running, its output streams token-by-token. The Output Panel scrolls automatically to keep the active node visible.
 
 ### Stopping a run
 
-Click **■ Stop** at any time. The in-progress node is cancelled and all remaining nodes are marked Skipped.
+Click **■ Stop** at any time. If the pipeline is currently paused at a Human Review checkpoint, clicking Stop will automatically reject the review and cancel the run.
 
 ---
 
-## 11. Human-in-Loop Review
+## 12. Human-in-Loop Review
 
-When the pipeline reaches a **Human Review** node, execution pauses and a modal dialog appears.
+When the pipeline reaches a **Human Review** node, execution pauses and a modal dialog appears over the canvas.
 
 The modal shows:
 - The **instructions** written in the node designer
@@ -448,17 +428,38 @@ The modal shows:
 - An optional **feedback** text field
 - **Approve** and **Reject** buttons
 
-**Approve** — the pipeline continues. Any text in the feedback field is passed as additional context to the next node.
+**Approve** — the pipeline continues. Any feedback text is passed as context to the next node.
 
-**Reject** — the pipeline stops and the run is marked cancelled. Your feedback is recorded in the run history.
+**Reject** — the pipeline stops. Your feedback is recorded in run history.
 
-If you set a **Timeout** (e.g. 30 minutes) in the node designer, the review auto-approves after that time if no action is taken.
+**Stop Run** — clicking the Stop button while a review is pending automatically rejects the review and cancels the run.
+
+### Bypass Review (auto-approve during testing)
+
+If you are iterating on a pipeline and do not want to manually approve every run:
+
+1. Click the Human Review node to open the Node Designer
+2. Check **Bypass Review (auto-approve during runs)**
+
+When bypass is enabled, the review modal never appears — the node is automatically approved and the pipeline continues uninterrupted. Disable bypass before using the pipeline in production.
+
+### Timeout
+
+Set **Timeout (minutes)** in the node designer. If no action is taken within that time:
+
+| On Timeout setting | Behaviour |
+|---|---|
+| Auto-approve | Pipeline continues as if approved |
+| Auto-reject | Pipeline stops as if rejected |
+| Escalate | Pipeline stops and marks an escalation |
+
+Set timeout to **0** to wait indefinitely (default).
 
 ---
 
-## 12. Starter Templates
+## 13. Starter Templates
 
-Open the **Templates** drawer from the top bar. Each template is a complete, runnable pipeline.
+Open the **Templates** drawer from the top bar. Each template is a complete, runnable pipeline with pre-filled system prompts, schemas, and an example brief.
 
 | Template | What it does |
 |---|---|
@@ -474,123 +475,120 @@ Open the **Templates** drawer from the top bar. Each template is a complete, run
 | **Stakeholder Alignment** | Proposal → stakeholder map + objection analysis → tailored messaging → human review → Alignment Brief |
 | **Strategic Judgment** | Decision → options + consequences + devil's advocate → synthesis → Strategic Brief |
 
-All templates include pre-filled system prompts, schemas, and example briefs. Every field is editable after loading.
+All templates load centred on the canvas. Every field is editable after loading.
 
-> **Writing a good brief matters more than any other single factor.** See [Section 17](#17-template-input-guide) for the optimal input for every template.
+> **Writing a good brief matters more than any other single factor.** See [Section 18](#18-template-input-guide) for the optimal input for every template.
 
 ---
 
-## 13. InfraNodus Integration
+## 14. InfraNodus Integration
 
-[InfraNodus](https://infranodus.com) turns text into a knowledge graph, surfacing the most connected concepts, structural gaps, and research questions that are not immediately obvious from reading the text.
+[InfraNodus](https://infranodus.com) turns text into a knowledge graph, surfacing the most connected concepts, structural gaps, and research questions.
 
 ### Adding an InfraNodus node
 
 1. Drag an **InfraNodus** node from the Library onto the canvas
 2. Connect it to an upstream Agent or Orchestrator
-3. Open the Node Designer and enter your **InfraNodus API key** (infranodus.com → Settings → API)
+3. Open the Node Designer → enter your **InfraNodus API key** (infranodus.com → Settings → API)
 4. Choose an **analysis operation**: Topics, Gaps, Research Questions, Bridges, Latent Topics, etc.
 
 ### Viewing the graph
 
-When the node completes, a **🌌 Visualize** button appears in the Output Panel. Click it to open the interactive constellation graph — concept nodes sized by centrality, connected by co-occurrence edges.
-
-The visualisation also appears automatically inside an Output node if **Show InfraNodus Viz** is enabled.
+When the node completes, a **🌌 Visualize** button appears in the Output Panel. Click it to open the interactive constellation graph.
 
 ---
 
-## 14. Export, Import & Run History
+## 15. Export, Import & Run History
 
 ### Exporting a pipeline
 
-Click **Export** in the top bar. Your entire pipeline — nodes, edges, positions, system prompts, schemas, and all settings — is saved as a `.json` file. Share this file and anyone can import it exactly as you built it.
+Click **Export** in the top bar. Your entire pipeline — nodes, edges, positions, system prompts, schemas, all settings — is saved as a `.json` file.
 
 ### Importing a pipeline
 
-Click **Import** and select a `.json` export file. The current canvas is replaced with the imported pipeline.
+Click **Import** and select a `.json` export file. The current canvas is replaced, with nodes centred automatically.
 
 ### Run History
 
-The **History** tab in the left panel shows a timestamped log of every pipeline run with:
-- Date and time
-- Run status (done / error / cancelled)
-- Pipeline name
-
-Click any entry to load a read-only replay of that run's output in the Output Panel.
+The **History** tab in the left panel shows a timestamped log of every run. Click any entry to load a read-only replay.
 
 ---
 
-## 15. Keyboard Shortcuts & Tips
+## 16. Keyboard Shortcuts & Tips
 
 | Action | Shortcut |
 |---|---|
 | Undo | Ctrl+Z |
 | Redo | Ctrl+Y |
 | Delete selected node or edge | Delete or Backspace |
-| Pan canvas | Click and drag on the background |
+| Multi-select | Shift+click nodes |
+| Pan canvas | Click and drag on background |
 | Zoom in / out | Ctrl+scroll |
-| Reset zoom to fit | Double-click the canvas background |
 
 ### Tips
 
+**Use the Architect Build tab first.** For any non-trivial pipeline, describing it in plain English and letting Architect generate the structure is faster and produces better results than dragging nodes manually.
+
 **Name your nodes clearly.** Node names appear in the Output Panel and run history. "Analyst Agent" is far more useful than "Agent 3".
 
-**Be precise in system prompts.** State the expected output format explicitly — for example: *"Respond with a JSON array of strings, no additional prose."* The more specific you are, the more predictable the output.
+**Use ✦ Draft for every system prompt.** Even if you plan to edit it, the AI-drafted prompt gives you a correct starting structure specific to this node's role in your pipeline.
 
-**Mix providers.** Put a fast, cheap model (Haiku, GPT-4o Mini, Gemma 2) on early triage or formatting nodes, and reserve a powerful model (Opus, GPT-4o) only for the node that produces the final synthesis.
+**Bypass Human Review during development.** Enable the bypass toggle on Human Review nodes while you are iterating, then disable it before using the pipeline for real work.
 
-**Test one node at a time.** While building, create a minimal two-node pipeline (one Agent, one Output) to verify your system prompt works before wiring up the full graph.
+**Mix providers.** Put a fast, cheap model (Haiku, GPT-4o Mini) on early triage or formatting nodes, and reserve a powerful model (Opus, GPT-4o) only for the final synthesis node.
 
-**Data sources are additive.** Multiple sources attached to one node are concatenated in order and prepended to the input. Keep total context below roughly 100 KB for best results.
-
-**Save regularly.** Use Export to save your pipeline as a `.json` file. The app does not yet auto-save.
+**Data sources are additive.** Multiple sources attached to one node are concatenated and prepended to the input. Keep total context below roughly 100 KB.
 
 ---
 
-## 16. Troubleshooting
+## 17. Troubleshooting
 
 ### "Execution requires the Tauri desktop app"
 
-You opened the app in a browser window instead of the desktop app. Either run `npm run tauri dev` during development, or install and open the `.dmg` directly.
+You opened the app in a browser window instead of the desktop app. Run `npm run tauri dev` during development, or open the installed `.dmg` directly.
 
 ### A node shows ✕ Error
 
-Click the node row in the Output Panel to expand it and read the error. Common causes:
+Click the node row in the Output Panel to expand it and read the error.
 
 | Error | Fix |
 |---|---|
 | API key missing or invalid | Check the top bar key, or the per-node key for non-Claude providers |
+| Generation failed: pipeline too large | Simplify the description — fewer nodes — or break into smaller pipelines |
 | Letta server not responding | Run `letta server` in your terminal and retry |
 | Ollama model not found | Run `ollama pull <model-name>` in your terminal |
 | LLM rate limit | Wait a few seconds and re-run |
 | Network timeout | Check your internet connection or local server |
 
-### Letta memory not persisting
+### Stop Run does not respond
 
-- Confirm the Letta server is running (`letta server`)
-- Verify the **Agent ID** in the node designer matches an agent that exists in your Letta instance
-- For Letta Cloud, double-check your API key and that the base URL is `https://api.letta.com`
+If the pipeline is stuck at a Human Review node, click **■ Stop** — it will automatically reject the pending review and cancel the run. If Stop still appears unresponsive, there may be a long-running LLM call in progress; wait a few seconds for the current HTTP request to time out (120 s maximum).
+
+### Human Review modal does not appear
+
+- Ensure you are running the **Tauri desktop app** (not the browser dev server)
+- Check that the Human Review node has **Bypass Review** unchecked in its Node Designer
 
 ### The Output node shows nothing
 
 - Ensure the Output node has at least one incoming edge and all upstream nodes completed successfully
-- Try switching the template to **Markdown Doc** — it renders any plain text without requiring structured JSON
+- Try switching the template to **Markdown Doc** — it renders any plain text
 
 ### Canvas is blank after import
 
-Check that the `.json` file contains a top-level `nodes` array and an `edges` array. If not, the file may be corrupted or is not a valid pipeline export.
+Check that the `.json` file contains a top-level `nodes` array and an `edges` array.
 
 ### GitHub Actions build takes 15–20 minutes
 
-This is expected on the first run — Rust compiles the entire dependency tree from scratch. Subsequent runs use the cache and typically finish in 4–6 minutes.
+Expected on the first run — Rust compiles the entire dependency tree from scratch. Subsequent runs use the cache and typically finish in 4–6 minutes.
 
 ---
 
-## 17. Template Input Guide
+## 18. Template Input Guide
 
-The quality of a pipeline run is almost entirely determined by what you put in the Brief panel. This section gives you the optimal input structure for every template — what information to provide, and why each piece matters.
+The quality of a pipeline run is almost entirely determined by what you put in the Prompt panel. This section gives you the optimal input structure for every template.
 
-A general rule applies to all templates: **be specific about context, constraints, and what you will use the output for.** The agents read your brief before doing anything — the more they know, the better calibrated their output.
+A general rule: **be specific about context, constraints, and what you will use the output for.** The more the agents know, the better calibrated their output.
 
 ---
 
@@ -608,8 +606,6 @@ Focus on evidence from 2020 onwards. I want peer-reviewed sources where possible
 not just opinion pieces.
 ```
 
-**Why specificity matters:** The Web Search Agent generates 2–3 search queries from your question. "Tell me about burnout" produces shallow queries. "What interventions reduce burnout in remote-first tech companies" produces targeted ones that retrieve far better sources.
-
 ---
 
 ### Customer Support Pipeline
@@ -625,8 +621,6 @@ Channel: email
 Prior tickets: 0
 ```
 
-**Why channel and history matter:** The Triage Agent uses the channel to calibrate tone (email = formal, chat = conversational) and the prior ticket count to assess urgency. Without them it defaults to generic middle-ground responses.
-
 ---
 
 ### Code Review System
@@ -635,42 +629,33 @@ Prior tickets: 0
 
 ```
 PR: https://github.com/myorg/api/pull/247
-Repo: myorg/api
-Branch: feature/auth-refresh-tokens
 Language: TypeScript / Node.js
 
 Context: This PR adds JWT refresh token rotation. Security is the top priority —
-please pay particular attention to token invalidation logic and any race conditions
-in the rotation flow.
+please pay particular attention to token invalidation logic and any race conditions.
 ```
-
-**Why the priority instruction matters:** Without it, the Code Analysis Agent gives equal weight to style violations, bugs, and security issues. Telling it what matters most focuses the findings where they count.
 
 ---
 
 ### Content Creation Pipeline
 
-**What it needs:** A full content brief — topic, audience, format, tone, word count, and what to avoid.
+**What it needs:** Topic, audience, format, tone, word count, and what to avoid.
 
 ```
-Topic: Why most B2B SaaS onboarding fails in the first 7 days — and what to do about it
+Topic: Why most B2B SaaS onboarding fails in the first 7 days
 Audience: SaaS founders and heads of product at 50–500 person companies
 Format: blog post
-Tone: Direct, practitioner voice — not academic, not hype. Like a smart colleague
-explaining something they have figured out.
+Tone: Direct, practitioner voice — not academic, not hype
 Word count: 1,200
-Must include: the "activation moment" concept, at least one concrete example,
-a 3-step framework in the conclusion
+Must include: the "activation moment" concept, a 3-step framework
 Avoid: generic advice about "personalisation"
 ```
-
-**Why tone and "avoid" matter most:** These two fields have the largest impact on output quality. Without them the Writer Agent produces polished but generic content. With them it has an editorial compass.
 
 ---
 
 ### RAG Pipeline
 
-**What it needs:** A specific, answerable question. Also: configure the Vector Search Tool node with your actual endpoint before running.
+**What it needs:** A specific, answerable question. Configure the Vector Search Tool node with your actual endpoint before running.
 
 ```
 Question: What does our employee handbook say about the approval process for
@@ -679,148 +664,118 @@ expenses over £500?
 Top K: 5
 ```
 
-**Important:** This template only produces useful output once you have wired the Vector Search Tool node to a real vector database containing your documents. Without that connection, treat it as a design pattern to build on rather than a ready-to-run pipeline.
-
 ---
 
 ### Data Processing Pipeline
 
-**What it needs:** Source description, transformation rules as concrete instructions, validation criteria, and the target destination.
+**What it needs:** Source description, transformation rules, validation criteria, and target destination.
 
 ```
-Source: Salesforce export — accounts and contacts CSV, approximately 12,000 rows
-Batch size: 500
+Source: Salesforce export — accounts and contacts CSV, ~12,000 rows
 
 Transformation rules:
 - Merge first_name + last_name into full_name
 - Normalise country codes to ISO 3166-1 alpha-2
-- Derive tier field: revenue > 100k = enterprise, > 10k = mid-market, else SMB
+- Derive tier: revenue > 100k = enterprise, > 10k = mid-market, else SMB
 
-Validation:
-- email must be present and valid format
-- account_id must not be null
-- revenue must be a positive number
+Validation: email present and valid, account_id not null, revenue positive
 
 Target: PostgreSQL table: crm.accounts (upsert on account_id)
 ```
-
-**Why concrete rules matter:** Vague transformation rules like "clean the data" produce vague outputs. The Transformer and Validator agents need specific, testable criteria to produce specific, testable results.
 
 ---
 
 ### Multi-Agent Debate
 
-**What it needs:** A clear arguable proposition (not a question), context about what the conclusion will be used for, and the number of debate rounds.
+**What it needs:** A clear arguable proposition (not a question), context, and number of rounds.
 
 ```
 Proposition: Organisations should eliminate annual performance reviews entirely
 and replace them with continuous feedback only.
 
-Context: We are a 200-person professional services firm considering changing our
-performance management approach. We want to understand the strongest arguments
-on both sides before deciding.
+Context: 200-person professional services firm considering this change.
+We want the strongest arguments on both sides.
 
 Rounds: 1
 ```
-
-**Why proposition framing matters:** The Advocate Agent needs something to argue *for*, not a question to answer. "Should organisations eliminate performance reviews?" produces a balanced essay. "Organisations should eliminate performance reviews" produces a genuine advocacy — and a genuine critique from the Devil's Advocate.
 
 ---
 
 ### DevOps Monitor
 
-**What it needs:** An alert payload with service name, environment, current metrics, and — critically — any recent deployments.
+**What it needs:** Alert payload with service name, environment, current metrics, and recent deployments.
 
 ```
 Alert: HTTP 5xx error rate on checkout-service exceeded 5% threshold (currently 12%)
 Service: checkout-service
 Environment: production
 Recent deployments: v2.4.1 deployed at 14:32 UTC (35 minutes ago)
-Current metrics: p99 latency 4.2s (up from 340ms baseline), error rate 12%,
-CPU normal, memory normal
-On-call engineer: @sarah-ops
+Current metrics: p99 latency 4.2s (up from 340ms baseline), error rate 12%
 ```
-
-**Why recent deployments matter most:** The Diagnostic Agent specifically looks for deployment correlation when forming its root cause hypothesis. Without this information it falls back to generic infrastructure checks and produces a much weaker diagnosis.
 
 ---
 
 ### Implementation Leadership
 
-**What it needs:** The initiative name and goal, real budget and timeline numbers, team composition, and any known risks or dependencies.
+**What it needs:** Initiative name and goal, budget and timeline numbers, team composition, known risks.
 
 ```
-Initiative: Launch a self-serve customer onboarding portal to replace our current
-manual white-glove process.
+Initiative: Launch a self-serve customer onboarding portal to replace manual
+white-glove process.
 
-Outcome: Customers can go live without a CSM touchpoint for deals under £10k ARR.
+Outcome: Customers go live without CSM touchpoint for deals under £10k ARR.
 Reduce time-to-value from 14 days to 3 days.
 
 Constraints:
 - Budget: £180k total
-- Timeline: must be live within 5 months
-- Team: 2 engineers (part-time), 1 product manager, 1 designer (contractor)
+- Timeline: 5 months
+- Team: 2 engineers (part-time), 1 PM, 1 designer (contractor)
 - Dependency: Legal sign-off on data handling required before build starts
 
-Known risks: engineering team has no experience with our identity provider (Auth0)
+Known risks: engineering team has no experience with Auth0
 ```
-
-**Why real numbers matter:** The Feasibility Evaluator scores the plan from 0–10 and identifies failure modes. Vague constraints like "limited budget" produce a vague score. Real numbers produce a real assessment — including whether the timeline is achievable with the team described.
 
 ---
 
 ### Stakeholder Alignment
 
-**What it needs:** The specific ask (what you need them to agree to), who the stakeholders are with their known positions, and any existing tensions.
+**What it needs:** The specific ask, who the stakeholders are with known positions, existing tensions.
 
 ```
-Proposal: Move our entire customer data infrastructure from on-premise servers to AWS.
-Timeline: 18 months.
+Proposal: Move customer data infrastructure from on-premise to AWS over 18 months.
+The ask: £2.4M investment approved by Executive Committee.
 
-The key ask: Approval from the Executive Committee to proceed with a £2.4M investment
-and a 6-month migration of production systems.
-
-Stakeholder groups:
-- CEO (sponsor — supportive but worried about risk during migration)
-- CFO (sceptical — wants ROI case, wants Year 1 cost neutral)
+Stakeholders:
+- CEO (supportive but worried about migration risk)
+- CFO (sceptical — wants ROI, Year 1 cost neutral)
 - CTO (champion — led the proposal)
-- Head of Security (concerned about compliance during transition)
-- VP of Engineering (anxious about workload on his teams)
-- Head of Customer Success (worried about downtime affecting customers)
+- Head of Security (compliance concerns during transition)
 
-Known tensions: CFO and CTO have clashed before on infrastructure investment.
+Known tensions: CFO and CTO have clashed on infrastructure investment before.
 Security team has veto power if compliance cannot be demonstrated upfront.
 ```
-
-**Why existing tensions and veto power matter:** The Concern & Objection Analyst distinguishes between stated objections and real underlying concerns. The more specific you are about who holds veto power and where past conflicts exist, the more targeted and credible the messaging strategy becomes.
 
 ---
 
 ### Strategic Judgment
 
-**What it needs:** The actual decision framed as a choice, the relevant context with real numbers, what you are optimising for, options already on the table, and what the output will be used for.
+**What it needs:** The decision framed as a choice, relevant context with real numbers, what you are optimising for, options already on the table, and what the output will be used for.
 
 ```
-Decision: Whether to expand into the US market now, wait 12 months until we reach
-profitability in the UK, or pursue a partnership/licensing route instead.
+Decision: Expand into US now, wait 12 months until UK profitability, or pursue
+partnership/licensing route.
 
-Context: UK-based B2B SaaS, £3.2M ARR, growing 80% YoY, currently pre-profitability
-with 18 months runway. We have inbound interest from 3 US enterprise prospects.
-Two competitors entered the US last year — one is struggling, one is growing fast.
+Context: UK B2B SaaS, £3.2M ARR, 80% YoY growth, pre-profitability, 18 months
+runway. Inbound interest from 3 US enterprise prospects.
 
-Goals: Preserve runway. Capture market share before the category gets crowded.
-We are not optimising for a quick exit — we want to build a durable business.
+Goals: Preserve runway, capture market share. Not optimising for quick exit.
 
 Options already on the table:
-1. Hire a US-based VP of Sales now and open a San Francisco office
+1. Hire US VP of Sales now, open San Francisco office
 2. Wait until Q3 next year when we project profitability
 
-What this will be used for: Board presentation in 3 weeks.
+Output will be used for: Board presentation in 3 weeks.
 ```
-
-**Why "what this will be used for" matters:** The Decision Synthesiser calibrates the language, formality, and framing of its recommendation based on the audience. Board presentation language is precise and concise. Internal team discussion language is exploratory. Without this context it defaults to a middle ground that fits neither well.
-
-**Why listing options already on the table matters:** The Options Generator is instructed to go *beyond* the obvious options. If you do not tell it what you have already considered, it will spend time restating them rather than finding the creative reframe or the path nobody has named yet.
 
 ---
 
