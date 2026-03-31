@@ -345,6 +345,13 @@ body {
 }
 .btn-stop:hover { background: rgba(239,68,68,0.18); }
 
+.brief-context-hint {
+  font-size: 10.5px;
+  color: var(--text-disabled);
+  line-height: 1.55;
+  padding: 6px 0 2px;
+}
+
 .btn-templates {
   background: transparent;
   border: 1px dashed var(--border-strong);

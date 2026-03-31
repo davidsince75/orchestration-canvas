@@ -5,7 +5,7 @@ import { getApplicableSkills, getSkillById } from '../data/skills.js';
 import { INFRANODUS_OPS, DEFAULT_INFRANODUS_OP } from '../data/infranodusOps.js';
 import { OUTPUT_TEMPLATES, DEFAULT_OUTPUT_TEMPLATE } from '../data/outputTemplates.js';
 import { OUTPUT_DESIGNS, DEFAULT_OUTPUT_DESIGN } from '../data/outputDesigns.js';
-import { callArchitect, parseGraph, callDraftSystemPrompt } from '../api/anthropic.js';
+import { callArchitect, parseGraph, callDraftSystemPrompt, callInferSchemas } from '../api/anthropic.js';
 import { useToast } from './ToastProvider.jsx';
 import { SchemaEditor } from './SchemaEditor.jsx';
 import { HelpTip } from './HelpTip.jsx';
@@ -139,6 +139,8 @@ export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDel
   const [draftLoading,  setDraftLoading]  = useState(false);
   const [draftPreview,  setDraftPreview]  = useState('');
   const [draftErr,      setDraftErr]      = useState('');
+  const [inferLoading,  setInferLoading]  = useState(false);
+  const [inferErr,      setInferErr]      = useState('');
   const toast = useToast();
 
   const nodeMap = Object.fromEntries(graph.nodes.map(n => [n.id, n]));
@@ -154,6 +156,24 @@ export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDel
       setDraftErr('Draft failed: ' + err.message);
     } finally {
       setDraftLoading(false);
+    }
+  };
+
+  const handleInferSchemas = async () => {
+    if (!apiKey.trim()) { setInferErr('Add your API key in the top bar first.'); return; }
+    setInferLoading(true); setInferErr('');
+    try {
+      const schemas = await callInferSchemas(apiKey, node);
+      onUpdateNode({
+        ...node,
+        inputSchema:  schemas.inputSchema  || node.inputSchema,
+        outputSchema: schemas.outputSchema || node.outputSchema,
+      });
+      toast('Schemas inferred', 'success');
+    } catch (err) {
+      setInferErr('Inference failed: ' + err.message);
+    } finally {
+      setInferLoading(false);
     }
   };
 
@@ -673,7 +693,21 @@ export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDel
           />
         )}
         <div className="field-group">
-          <label className="field-label">Input Schema {tip('inputSchema')}</label>
+          <div className="field-label-row">
+            <label className="field-label">Input Schema {tip('inputSchema')}</label>
+            {(node.type === 'orchestrator' || node.type === 'agent') && (
+              <button
+                className="draft-btn"
+                onClick={handleInferSchemas}
+                disabled={inferLoading || !apiKey.trim()}
+                title="Infer input and output schemas with AI"
+              >
+                {inferLoading ? <span className="draft-spinner" /> : '✦'}
+                {inferLoading ? 'Inferring…' : 'Infer'}
+              </button>
+            )}
+          </div>
+          {inferErr && <div className="error-msg" style={{ marginTop: 2, marginBottom: 4 }}>{inferErr}</div>}
           <SchemaEditor schema={node.inputSchema || {}} onChange={s => up('inputSchema', s)} />
         </div>
         <div className="field-group">

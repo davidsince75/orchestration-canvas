@@ -9,7 +9,7 @@
  * TODO Phase 3: node execution already goes through run_graph in Rust.
  * Architect calls are now also through Rust. No CORS workaround remains.
  */
-import { ARCHITECT_SYSTEM_PROMPT, ARCHITECT_ANALYSIS_PROMPT, ARCHITECT_FIX_PROMPT, ARCHITECT_GENERATE_PROMPT, DRAFT_SYSTEM_PROMPT_PROMPT, SUGGEST_RUN_INPUT_PROMPT } from '../data/systemPrompts.js';
+import { ARCHITECT_SYSTEM_PROMPT, ARCHITECT_ANALYSIS_PROMPT, ARCHITECT_FIX_PROMPT, ARCHITECT_GENERATE_PROMPT, DRAFT_SYSTEM_PROMPT_PROMPT, SUGGEST_RUN_INPUT_PROMPT, INFER_SCHEMAS_PROMPT } from '../data/systemPrompts.js';
 
 async function tauriInvoke(cmd, args) {
   if (!window.__TAURI_INTERNALS__) {
@@ -76,6 +76,29 @@ export async function callArchitectFix(apiKey, graph, diagnostics) {
       maxTokens:    2000,
       systemPrompt: ARCHITECT_FIX_PROMPT,
       messages:     [{ role: 'user', content: JSON.stringify(summary, null, 2) }],
+      apiKey,
+    },
+  });
+
+  const text  = raw.trim();
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  return JSON.parse(fence ? fence[1] : text);
+}
+
+export async function callInferSchemas(apiKey, node) {
+  const ctx = {
+    type:         node.type,
+    name:         node.name,
+    role:         node.role         || '',
+    systemPrompt: (node.systemPrompt || '').slice(0, 400),
+  };
+
+  const raw = await tauriInvoke('call_architect', {
+    req: {
+      model:        'claude-haiku-4-5',
+      maxTokens:    400,
+      systemPrompt: INFER_SCHEMAS_PROMPT,
+      messages:     [{ role: 'user', content: JSON.stringify(ctx, null, 2) }],
       apiKey,
     },
   });

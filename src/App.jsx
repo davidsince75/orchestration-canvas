@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useGraphHistory } from './hooks/useGraphHistory.js';
 import { useRunEngine } from './hooks/useRunEngine.js';
-import { callArchitect, parseGraph } from './api/anthropic.js';
 import { validateGraph, isInputFocused } from './utils/graph.js';
 import { secureGet, secureSet } from './utils/secureStore.js';
 import { dbGet, dbSet, dbDel } from './utils/db.js';
@@ -30,8 +29,6 @@ export function App() {
   const [brief,          setBrief]           = useState('');
   const [selectedId,     setSelectedId]      = useState(null);
   const [selectedEdgeId, setSelectedEdgeId]  = useState(null);
-  const [loading,        setLoading]         = useState(false);
-  const [error,          setError]           = useState('');
   const [validIssues,    setValidIssues]     = useState([]);
   const [highlightedIds, setHighlightedIds]  = useState(new Set());
   const [showTemplates,  setShowTemplates]   = useState(false);
@@ -109,19 +106,6 @@ export function App() {
   const selectedNode = graph.nodes.find(n => n.id === selectedId) || null;
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
-  const handleGenerate = async () => {
-    if (!brief.trim() || !apiKey.trim()) return;
-    setLoading(true); setError('');
-    try {
-      const text = await callArchitect(apiKey, [{ role: 'user', content: brief }]);
-      setGraph(parseGraph(text));
-      setSelectedId(null);
-      toast('Map generated', 'success');
-    } catch (err) {
-      setError(err instanceof SyntaxError || err.message.includes('JSON') || err.message.includes('parse')
-        ? 'Architect returned invalid response — try again' : err.message);
-    } finally { setLoading(false); }
-  };
 
   const handleUpdatePosition = useCallback((nodeId, x, y) => {
     setGraphSilent(prev => ({ ...prev, nodes: prev.nodes.map(n => n.id === nodeId ? { ...n, position: { x, y } } : n) }));
@@ -267,9 +251,7 @@ export function App() {
         {runMode === 'design' ? (
           <LeftPanel
             brief={brief} setBrief={setBrief}
-            onGenerate={handleGenerate}
             onOpenTemplates={() => setShowTemplates(true)}
-            loading={loading} error={error}
           />
         ) : (
           <RunBriefPanel

@@ -41,6 +41,22 @@ Only include entries that are strictly necessary. For nodes with missing systemP
 
 export const ARCHITECT_SYSTEM_PROMPT = `You are an Agent Orchestration Architect. Given a natural language description of a system, you return a JSON graph representing its agent orchestration structure.  Return ONLY valid JSON, no prose, no markdown. Schema:  {   "nodes": [     {       "id": "string",       "type": "orchestrator" | "agent" | "tool" | "memory" | "router" | "evaluator" | "human-in-loop" | "infranodus",       "name": "string",       "role": "string (one sentence)",       "systemPrompt": "string (draft system prompt for this agent)",       "inputSchema": { "key": "type description" },       "outputSchema": { "key": "type description" },       "position": { "x": number, "y": number }     }   ],   "edges": [     {       "id": "string",       "from": "node_id",       "to": "node_id",       "label": "string (e.g. 'delegates to', 'returns result', 'reads from')"     }   ] }  Layout rules for position values: - Orchestrator: center top, around x:500 y:100 - Agents: spread horizontally, y:300-400 - Tools: below their calling agents, y:550-600 - Memory: bottom row, y:700  Generate realistic, specific node names and role descriptions based on the user's brief. Draft plausible system prompts for each agent node.`;
 
+export const INFER_SCHEMAS_PROMPT = `You are an AI systems architect. Given a description of an agent node (its name, type, role, and system prompt), infer the most likely input and output schemas for that node.
+
+Return ONLY valid JSON — no prose, no markdown, no code fences:
+{
+  "inputSchema":  { "fieldName": "type — brief description" },
+  "outputSchema": { "fieldName": "type — brief description" }
+}
+
+Rules:
+1. Use concise, snake_case field names (e.g. "company_name", "analysis_result")
+2. Values should be the type followed by a dash and a short description (e.g. "string — the company to research")
+3. Infer 2–4 fields per schema — not too sparse, not over-engineered
+4. The inputSchema should reflect what this node needs to receive to do its job
+5. The outputSchema should reflect what this node produces for downstream nodes
+6. If the system prompt is empty, infer from the node name and role alone`;
+
 export const SUGGEST_RUN_INPUT_PROMPT = `You are helping a user test an AI agent pipeline. Given a description of the pipeline's nodes and their roles, write a single realistic, specific input prompt that a real user might submit to trigger this pipeline.
 
 Return ONLY the input text — no explanation, no quotes, no preamble. Just the raw input a user would type.
