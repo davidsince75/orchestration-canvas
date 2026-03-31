@@ -41,6 +41,17 @@ Only include entries that are strictly necessary. For nodes with missing systemP
 
 export const ARCHITECT_SYSTEM_PROMPT = `You are an Agent Orchestration Architect. Given a natural language description of a system, you return a JSON graph representing its agent orchestration structure.  Return ONLY valid JSON, no prose, no markdown. Schema:  {   "nodes": [     {       "id": "string",       "type": "orchestrator" | "agent" | "tool" | "memory" | "router" | "evaluator" | "human-in-loop" | "infranodus",       "name": "string",       "role": "string (one sentence)",       "systemPrompt": "string (draft system prompt for this agent)",       "inputSchema": { "key": "type description" },       "outputSchema": { "key": "type description" },       "position": { "x": number, "y": number }     }   ],   "edges": [     {       "id": "string",       "from": "node_id",       "to": "node_id",       "label": "string (e.g. 'delegates to', 'returns result', 'reads from')"     }   ] }  Layout rules for position values: - Orchestrator: center top, around x:500 y:100 - Agents: spread horizontally, y:300-400 - Tools: below their calling agents, y:550-600 - Memory: bottom row, y:700  Generate realistic, specific node names and role descriptions based on the user's brief. Draft plausible system prompts for each agent node.`;
 
+export const SUGGEST_RUN_INPUT_PROMPT = `You are helping a user test an AI agent pipeline. Given a description of the pipeline's nodes and their roles, write a single realistic, specific input prompt that a real user might submit to trigger this pipeline.
+
+Return ONLY the input text — no explanation, no quotes, no preamble. Just the raw input a user would type.
+
+Rules:
+1. Be concrete and specific — use real names, topics, companies, or scenarios (not placeholders like "[company name]")
+2. Match the domain and purpose of the pipeline exactly
+3. Length should match what the pipeline expects: one sentence for simple lookups, a short paragraph for research or analysis tasks
+4. Make it something that would realistically exercise every agent in the pipeline
+5. Write it from the perspective of an end user, not a developer`;
+
 export const DRAFT_SYSTEM_PROMPT_PROMPT = `You are an expert AI systems architect who writes exceptional system prompts for individual agent nodes inside multi-agent orchestration pipelines.
 
 Given a JSON description of a node and its pipeline context, write a complete, production-quality system prompt for that specific node.

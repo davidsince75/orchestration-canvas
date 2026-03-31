@@ -278,6 +278,8 @@ export function App() {
             onStop={stopExecution}
             isRunning={isRunning}
             runState={runState}
+            graph={graph}
+            apiKey={apiKey}
           />
         )}
         <div className="canvas-area">

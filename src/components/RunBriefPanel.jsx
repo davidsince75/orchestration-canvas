@@ -2,7 +2,25 @@
  * Compact brief editor shown in Run mode (left panel).
  * Editable when idle; read-only while a run is in progress.
  */
-export function RunBriefPanel({ brief, setBrief, onRun, onStop, isRunning, runState }) {
+import { useState } from 'react';
+import { callSuggestRunInput } from '../api/anthropic.js';
+
+export function RunBriefPanel({ brief, setBrief, onRun, onStop, isRunning, runState, graph, apiKey }) {
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestErr, setSuggestErr] = useState('');
+
+  const handleSuggest = async () => {
+    if (!apiKey?.trim()) { setSuggestErr('Add your API key in the top bar first.'); return; }
+    setSuggesting(true); setSuggestErr('');
+    try {
+      const input = await callSuggestRunInput(apiKey, graph);
+      setBrief(input);
+    } catch (err) {
+      setSuggestErr('Could not generate suggestion: ' + err.message);
+    } finally {
+      setSuggesting(false);
+    }
+  };
   const mode       = runState?.mode;
   const isIdle     = !isRunning && !mode;
   const isDone     = mode === 'done';
@@ -33,7 +51,21 @@ export function RunBriefPanel({ brief, setBrief, onRun, onStop, isRunning, runSt
       </div>
 
       <div className="brief-tab-content">
-        <span className="panel-heading">Pipeline Input</span>
+        <div className="field-label-row" style={{ marginBottom: 6 }}>
+          <span className="panel-heading" style={{ marginBottom: 0 }}>Pipeline Input</span>
+          {!brief.trim() && !isRunning && graph?.nodes?.length > 0 && (
+            <button
+              className="draft-btn"
+              onClick={handleSuggest}
+              disabled={suggesting}
+              title="Generate a sample input for this pipeline"
+            >
+              {suggesting ? <span className="draft-spinner" /> : '✦'}
+              {suggesting ? 'Thinking…' : 'Suggest input'}
+            </button>
+          )}
+        </div>
+        {suggestErr && <div className="error-msg" style={{ marginBottom: 6, fontSize: 11 }}>{suggestErr}</div>}
         <textarea
           style={{
             flex: 1,

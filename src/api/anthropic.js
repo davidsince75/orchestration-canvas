@@ -9,7 +9,7 @@
  * TODO Phase 3: node execution already goes through run_graph in Rust.
  * Architect calls are now also through Rust. No CORS workaround remains.
  */
-import { ARCHITECT_SYSTEM_PROMPT, ARCHITECT_ANALYSIS_PROMPT, ARCHITECT_FIX_PROMPT, ARCHITECT_GENERATE_PROMPT, DRAFT_SYSTEM_PROMPT_PROMPT } from '../data/systemPrompts.js';
+import { ARCHITECT_SYSTEM_PROMPT, ARCHITECT_ANALYSIS_PROMPT, ARCHITECT_FIX_PROMPT, ARCHITECT_GENERATE_PROMPT, DRAFT_SYSTEM_PROMPT_PROMPT, SUGGEST_RUN_INPUT_PROMPT } from '../data/systemPrompts.js';
 
 async function tauriInvoke(cmd, args) {
   if (!window.__TAURI_INTERNALS__) {
@@ -83,6 +83,29 @@ export async function callArchitectFix(apiKey, graph, diagnostics) {
   const text  = raw.trim();
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   return JSON.parse(fence ? fence[1] : text);
+}
+
+export async function callSuggestRunInput(apiKey, graph) {
+  const pipeline = {
+    nodes: graph.nodes.map(n => ({
+      type: n.type,
+      name: n.name,
+      role: (n.role || '').slice(0, 120),
+      systemPromptSnippet: (n.systemPrompt || '').slice(0, 200),
+    })),
+  };
+
+  const raw = await tauriInvoke('call_architect', {
+    req: {
+      model:        'claude-haiku-4-5',
+      maxTokens:    300,
+      systemPrompt: SUGGEST_RUN_INPUT_PROMPT,
+      messages:     [{ role: 'user', content: JSON.stringify(pipeline, null, 2) }],
+      apiKey,
+    },
+  });
+
+  return raw.trim();
 }
 
 export async function callDraftSystemPrompt(apiKey, node, graph) {
