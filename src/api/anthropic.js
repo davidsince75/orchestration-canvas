@@ -9,7 +9,7 @@
  * TODO Phase 3: node execution already goes through run_graph in Rust.
  * Architect calls are now also through Rust. No CORS workaround remains.
  */
-import { ARCHITECT_SYSTEM_PROMPT, ARCHITECT_ANALYSIS_PROMPT, ARCHITECT_FIX_PROMPT, ARCHITECT_GENERATE_PROMPT } from '../data/systemPrompts.js';
+import { ARCHITECT_SYSTEM_PROMPT, ARCHITECT_ANALYSIS_PROMPT, ARCHITECT_FIX_PROMPT, ARCHITECT_GENERATE_PROMPT, DRAFT_SYSTEM_PROMPT_PROMPT } from '../data/systemPrompts.js';
 
 async function tauriInvoke(cmd, args) {
   if (!window.__TAURI_INTERNALS__) {
@@ -83,6 +83,45 @@ export async function callArchitectFix(apiKey, graph, diagnostics) {
   const text  = raw.trim();
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   return JSON.parse(fence ? fence[1] : text);
+}
+
+export async function callDraftSystemPrompt(apiKey, node, graph) {
+  // Build a minimal context object — just enough for Claude to write a great prompt
+  const nodeMap = Object.fromEntries(graph.nodes.map(n => [n.id, n]));
+  const incoming = graph.edges
+    .filter(e => e.to === node.id)
+    .map(e => ({ name: nodeMap[e.from]?.name || e.from, role: nodeMap[e.from]?.role || '', label: e.label || '' }));
+  const outgoing = graph.edges
+    .filter(e => e.from === node.id)
+    .map(e => ({ name: nodeMap[e.to]?.name || e.to, role: nodeMap[e.to]?.role || '', label: e.label || '' }));
+
+  const ctx = {
+    node: {
+      type:         node.type,
+      name:         node.name,
+      role:         node.role || '',
+      existingPrompt: (node.systemPrompt || '').trim(),
+    },
+    pipelineSize: graph.nodes.length,
+    incoming,
+    outgoing,
+  };
+
+  const instruction = ctx.node.existingPrompt
+    ? `Improve and expand the existing system prompt for this node. Keep what is good, make it more specific, detailed, and production-ready.\n\n${JSON.stringify(ctx, null, 2)}`
+    : `Write a new system prompt for this node from scratch based on its role and pipeline context.\n\n${JSON.stringify(ctx, null, 2)}`;
+
+  const raw = await tauriInvoke('call_architect', {
+    req: {
+      model:        'claude-sonnet-4-6',
+      maxTokens:    600,
+      systemPrompt: DRAFT_SYSTEM_PROMPT_PROMPT,
+      messages:     [{ role: 'user', content: instruction }],
+      apiKey,
+    },
+  });
+
+  return raw.trim();
 }
 
 export async function callArchitectGenerate(apiKey, description) {

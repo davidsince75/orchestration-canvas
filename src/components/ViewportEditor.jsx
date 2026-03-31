@@ -5,7 +5,7 @@ import { getApplicableSkills, getSkillById } from '../data/skills.js';
 import { INFRANODUS_OPS, DEFAULT_INFRANODUS_OP } from '../data/infranodusOps.js';
 import { OUTPUT_TEMPLATES, DEFAULT_OUTPUT_TEMPLATE } from '../data/outputTemplates.js';
 import { OUTPUT_DESIGNS, DEFAULT_OUTPUT_DESIGN } from '../data/outputDesigns.js';
-import { callArchitect, parseGraph } from '../api/anthropic.js';
+import { callArchitect, parseGraph, callDraftSystemPrompt } from '../api/anthropic.js';
 import { useToast } from './ToastProvider.jsx';
 import { SchemaEditor } from './SchemaEditor.jsx';
 import { HelpTip } from './HelpTip.jsx';
@@ -133,13 +133,35 @@ function OutputCustomSections({ sections, onChange }) {
 }
 
 export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDeleteNode, apiKey, generating, prefs }) {
-  const [refineText, setRefineText] = useState('');
-  const [refining,   setRefining]   = useState(false);
-  const [refineErr,  setRefineErr]  = useState('');
+  const [refineText,    setRefineText]    = useState('');
+  const [refining,      setRefining]      = useState(false);
+  const [refineErr,     setRefineErr]     = useState('');
+  const [draftLoading,  setDraftLoading]  = useState(false);
+  const [draftPreview,  setDraftPreview]  = useState('');
+  const [draftErr,      setDraftErr]      = useState('');
   const toast = useToast();
 
   const nodeMap = Object.fromEntries(graph.nodes.map(n => [n.id, n]));
   const up = (field, value) => onUpdateNode({ ...node, [field]: value });
+
+  const handleDraftPrompt = async () => {
+    if (!apiKey.trim()) { setDraftErr('Add your API key in the top bar first.'); return; }
+    setDraftLoading(true); setDraftErr(''); setDraftPreview('');
+    try {
+      const drafted = await callDraftSystemPrompt(apiKey, node, graph);
+      setDraftPreview(drafted);
+    } catch (err) {
+      setDraftErr('Draft failed: ' + err.message);
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  const applyDraft = () => {
+    up('systemPrompt', draftPreview);
+    setDraftPreview('');
+    toast('System prompt applied', 'success');
+  };
 
   const handleToggleSkill = (skillId) => {
     if (!node) return;
@@ -233,8 +255,35 @@ export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDel
         </div>
         {(node.type === 'orchestrator' || node.type === 'agent') && (
           <div className="field-group">
-            <label className="field-label">System Prompt {tip('systemPrompt')}</label>
-            <textarea className="field-textarea" value={node.systemPrompt || ''} rows={6} onChange={e => up('systemPrompt', e.target.value)} />
+            <div className="field-label-row">
+              <label className="field-label">System Prompt {tip('systemPrompt')}</label>
+              <button
+                className="draft-btn"
+                onClick={handleDraftPrompt}
+                disabled={draftLoading || !apiKey.trim()}
+                title={node.systemPrompt?.trim() ? 'Improve with AI' : 'Draft with AI'}
+              >
+                {draftLoading ? <span className="draft-spinner" /> : '✦'}
+                {draftLoading ? 'Drafting…' : node.systemPrompt?.trim() ? 'Improve' : 'Draft'}
+              </button>
+            </div>
+            <textarea
+              className="field-textarea"
+              value={node.systemPrompt || ''}
+              rows={6}
+              onChange={e => { up('systemPrompt', e.target.value); setDraftPreview(''); }}
+            />
+            {draftErr && <div className="error-msg" style={{ marginTop: 4 }}>{draftErr}</div>}
+            {draftPreview && (
+              <div className="draft-preview">
+                <div className="draft-preview-label">✦ AI Draft — review before applying</div>
+                <div className="draft-preview-text">{draftPreview}</div>
+                <div className="draft-preview-actions">
+                  <button className="draft-apply-btn" onClick={applyDraft}>Apply</button>
+                  <button className="draft-discard-btn" onClick={() => setDraftPreview('')}>Discard</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
         {node.type === 'tool' && (
