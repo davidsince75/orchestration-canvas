@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import React from 'react';
 import { NODE_STYLES } from '../data/nodeStyles.js';
 import { callArchitectAnalysis, callArchitectFix, callArchitectGenerate } from '../api/anthropic.js';
 import { snapToGrid, findCriticalPath } from '../utils/graph.js';
 import { useToast } from './ToastProvider.jsx';
 
-export function ArchitectPanel({ graph, validIssues, apiKey, onAddNodeFull, onHighlight, onUpdateGraph, onClose }) {
+export function ArchitectPanel({ graph, validIssues, apiKey, onAddNodeFull, onHighlight, onUpdateGraph, onClose, suggestedDesc }) {
   const [tab,     setTab]     = useState('build');
   const [loading, setLoading] = useState(false);
   const [result,  setResult]  = useState(null);
@@ -25,6 +25,17 @@ export function ArchitectPanel({ graph, validIssues, apiKey, onAddNodeFull, onHi
   const [buildApplied, setBuildApplied] = useState(false);
 
   const toast = useToast();
+
+  // When a canvas example is clicked, pre-fill the Build tab and switch to it
+  useEffect(() => {
+    if (suggestedDesc) {
+      setBuildDesc(suggestedDesc);
+      setBuildResult(null);
+      setBuildApplied(false);
+      setBuildError('');
+      setTab('build');
+    }
+  }, [suggestedDesc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const critPath = findCriticalPath(graph);
   const nodeMap  = Object.fromEntries(graph.nodes.map(n => [n.id, n]));

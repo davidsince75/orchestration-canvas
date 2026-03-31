@@ -44,6 +44,7 @@ export function App() {
   const [runMode,        setRunMode]         = useState('design');
   const [prefs,          setPrefs]           = useState({});
   const [dbLoaded,       setDbLoaded]        = useState(false);
+  const [suggestedDesc,  setSuggestedDesc]   = useState('');
   const toast = useToast();
 
   const { runState, pendingReview, startExecution, stopExecution, clearRun, submitReview, isRunning } = useRunEngine(
@@ -66,6 +67,10 @@ export function App() {
       if (savedGraph) { try { setGraph(JSON.parse(savedGraph)); } catch {} }
       if (savedPrefs) { try { setPrefs(JSON.parse(savedPrefs)); } catch {} }
       setDbLoaded(true);
+      // Auto-open Architect to Build tab when canvas is empty on first load
+      if (!savedGraph || savedGraph === '{"nodes":[],"edges":[]}') {
+        setArchitectOpen(true);
+      }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -216,6 +221,13 @@ export function App() {
     toast('Connection added', 'success');
   }, [setGraph, toast]);
 
+  const handleExampleClick = useCallback((example) => {
+    setSuggestedDesc(example);
+    setArchitectOpen(true);
+    // Reset after one tick so re-clicking the same example still fires the effect
+    setTimeout(() => setSuggestedDesc(''), 100);
+  }, []);
+
   const handleNewCanvas = useCallback(() => {
     if (graph.nodes.length > 0 && !window.confirm('Clear the canvas? Export first if needed.')) return;
     setGraph({ nodes: [], edges: [] });
@@ -287,6 +299,7 @@ export function App() {
             selectedIds={selectedIds}
             onMultiSelect={setSelectedIds}
             wrapperRefOut={canvasWrapperRef}
+            onExampleClick={handleExampleClick}
           />
           {/* Minimap — outside scroll container so position:absolute works correctly */}
           {graph.nodes.length > 0 && runMode === 'design' && (
@@ -319,6 +332,7 @@ export function App() {
             onHighlight={setHighlightedIds}
             onUpdateGraph={handleUpdateGraph}
             onClose={() => setArchitectOpen(false)}
+            suggestedDesc={suggestedDesc}
           />
         )}
         {runMode === 'run' && (

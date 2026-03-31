@@ -9,10 +9,19 @@ import { NodeCard } from './NodeCard.jsx';
 const CANVAS_W = 2400;
 const CANVAS_H = 1600;
 
+const EXAMPLE_PROMPTS = [
+  'A research assistant that searches the web, summarises findings, and writes a briefing document',
+  'A customer support triage system that reads tickets, classifies urgency, and drafts personalised replies',
+  'A competitive intelligence pipeline that monitors competitor activity and generates a weekly digest',
+  'A content moderation system that classifies posts, flags harmful content, and routes borderline cases for human review',
+  'An investment analysis tool that researches a company, assesses risk factors, and writes a one-page investment brief',
+];
+
 export function Canvas({ graph, selectedId, selectedEdgeId, highlightedIds,
                          onSelectNode, onSelectEdge, onUpdatePosition,
                          onAddNode, onAddEdge, portsAlways, nodeRunStates, runMode,
-                         zoom, onZoom, selectedIds, onMultiSelect, wrapperRefOut }) {
+                         zoom, onZoom, selectedIds, onMultiSelect, wrapperRefOut,
+                         onExampleClick }) {
   const wrapperRef  = useRef(null);
 
   // Expose the wrapper element to parent (for Minimap scroll sync)
@@ -227,8 +236,20 @@ export function Canvas({ graph, selectedId, selectedEdgeId, highlightedIds,
                 </>
               ) : (
                 <>
-                  <h2>Orchestration Canvas</h2>
-                  <p>Describe your system in the panel on the left<br />and click <strong style={{color:'#252535'}}>Generate Map</strong> to begin.<br /><br /><span style={{color:'#1e1e2e'}}>Double-click canvas to add a node · Drag from port to connect</span></p>
+                  <div className="placeholder-title">What do you want to build?</div>
+                  <div className="placeholder-sub">Open the <strong>⬡ Architect</strong> panel and describe your pipeline — or start with one of these:</div>
+                  <div className="placeholder-examples">
+                    {EXAMPLE_PROMPTS.map((ex, i) => (
+                      <button
+                        key={i}
+                        className="placeholder-example-btn"
+                        onClick={() => onExampleClick && onExampleClick(ex)}
+                      >
+                        {ex}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="placeholder-hint">Double-click canvas to add a node manually · Drag between ports to connect</div>
                 </>
               )}
             </div>
