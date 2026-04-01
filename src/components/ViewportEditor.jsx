@@ -164,7 +164,57 @@ function SharedMemoryEditor({ node, onChange, tip }) {
   );
 }
 
-export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDeleteNode, apiKey, generating, prefs }) {
+// ── Edge properties panel ─────────────────────────────────────────────────────
+
+function EdgePanel({ edge, graph, onUpdateEdge, onDeleteEdge }) {
+  const fromNode = graph.nodes.find(n => n.id === edge.from);
+  const toNode   = graph.nodes.find(n => n.id === edge.to);
+  const mode     = edge.mode || 'continue';
+
+  return (
+    <div className="viewport-editor">
+      <div className="vp-header">
+        <div className="vp-header-dot" style={{ background: '#6c5ce7' }} />
+        <span className="vp-header-name">Connection</span>
+        <span className="vp-header-type">edge</span>
+        <button className="vp-delete-btn" onClick={() => onDeleteEdge(edge.id)} title="Delete connection (Del)">🗑</button>
+      </div>
+      <div className="vp-body">
+        <div className="field-group">
+          <label className="field-label">From → To</label>
+          <div className="field-hint">{fromNode?.name || edge.from} → {toNode?.name || edge.to}</div>
+        </div>
+        <div className="field-group">
+          <label className="field-label">Label</label>
+          <input
+            className="field-input"
+            value={edge.label || ''}
+            placeholder="Optional route label"
+            onChange={e => onUpdateEdge({ ...edge, label: e.target.value })}
+          />
+        </div>
+        <div className="field-group">
+          <label className="field-label">Context Mode</label>
+          <select
+            className="field-select"
+            value={mode}
+            onChange={e => onUpdateEdge({ ...edge, mode: e.target.value })}
+          >
+            <option value="continue">Continue — pass full upstream context</option>
+            <option value="fresh">Fresh — skip raw output; use shared memory</option>
+          </select>
+          <div className="field-hint" style={{ marginTop: 4 }}>
+            {mode === 'continue'
+              ? 'The downstream node receives the full accumulated output history from all upstream nodes.'
+              : 'The downstream node starts with a clean context. Use Shared Memory read keys to receive structured data instead of raw output.'}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ViewportEditor({ node, selectedEdge, graph, onUpdateNode, onUpdateEdge, onUpdateGraph, onDeleteNode, onDeleteEdge, apiKey, generating, prefs }) {
   const [refineText,    setRefineText]    = useState('');
   const [refining,      setRefining]      = useState(false);
   const [refineErr,     setRefineErr]     = useState('');
@@ -259,9 +309,19 @@ export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDel
   };
 
   if (!node) {
+    if (selectedEdge) {
+      return (
+        <EdgePanel
+          edge={selectedEdge}
+          graph={graph}
+          onUpdateEdge={onUpdateEdge}
+          onDeleteEdge={onDeleteEdge}
+        />
+      );
+    }
     return (
       <div className="viewport-editor">
-        <div className="vp-empty">Click any node to inspect<br />and edit its properties</div>
+        <div className="vp-empty">Click any node or connection<br />to inspect and edit its properties</div>
       </div>
     );
   }
@@ -304,6 +364,43 @@ export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDel
         <div className="field-group">
           <label className="field-label">Role Description {tip('role')}</label>
           <input className="field-input" value={node.role || ''} onChange={e => up('role', e.target.value)} />
+        </div>
+        <div className="field-group">
+          <label className="field-label">Execution Phase</label>
+          <select
+            className="field-select"
+            value={node.phase || ''}
+            onChange={e => up('phase', e.target.value)}
+          >
+            <option value="">Unset</option>
+            <option value="research">Research</option>
+            <option value="synthesis">Synthesis</option>
+            <option value="implementation">Implementation</option>
+            <option value="verification">Verification</option>
+          </select>
+        </div>
+        {(node.type === 'orchestrator' || node.type === 'agent') && (
+          <div className="field-group">
+            <label className="field-label">Tool Tier</label>
+            <select
+              className="field-select"
+              value={node.toolTier || 'full'}
+              onChange={e => up('toolTier', e.target.value)}
+            >
+              <option value="full">Full — all tools available</option>
+              <option value="simple">Simple — Bash, Read, Edit only</option>
+            </select>
+          </div>
+        )}
+        <div className="field-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label className="field-label" style={{ margin: 0 }}>Use Scratchpad</label>
+          <input
+            type="checkbox"
+            checked={!!node.useScratchpad}
+            onChange={e => up('useScratchpad', e.target.checked)}
+            style={{ width: 14, height: 14, cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: 10, opacity: 0.55 }}>Inject shared temp dir path into context</span>
         </div>
         {(node.type === 'orchestrator' || node.type === 'agent') && (
           <div className="field-group">

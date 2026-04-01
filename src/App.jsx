@@ -138,6 +138,10 @@ export function App() {
     toast('Connection removed', 'info');
   }, [setGraph, toast]);
 
+  const handleUpdateEdge = useCallback((updated) => {
+    setGraph(prev => ({ ...prev, edges: prev.edges.map(e => e.id === updated.id ? updated : e) }));
+  }, [setGraph]);
+
   const handleDeleteSelected = useCallback(() => {
     if (selectedIds.size > 1) {
       const ids = selectedIds;
@@ -332,10 +336,13 @@ export function App() {
         {runMode === 'design' && (
           <ViewportEditor
             node={selectedNode}
+            selectedEdge={graph.edges.find(e => e.id === selectedEdgeId) || null}
             graph={graph}
             onUpdateNode={handleUpdateNode}
+            onUpdateEdge={handleUpdateEdge}
             onUpdateGraph={handleUpdateGraph}
             onDeleteNode={handleDeleteNode}
+            onDeleteEdge={handleDeleteEdge}
             apiKey={apiKey}
             generating={false}
             prefs={prefs}
