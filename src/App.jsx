@@ -42,6 +42,7 @@ export function App() {
   const [prefs,          setPrefs]           = useState({});
   const [dbLoaded,       setDbLoaded]        = useState(false);
   const [suggestedDesc,  setSuggestedDesc]   = useState('');
+  const [error,          setError]           = useState('');
   const toast = useToast();
 
   const { runState, pendingReview, startExecution, stopExecution, clearRun, submitReview, isRunning } = useRunEngine(
