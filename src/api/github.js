@@ -5,8 +5,8 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 
-const GIST_FILENAME = 'orchestration-canvas.json';
-const GIST_DESCRIPTION = 'Orchestration Canvas – saved graph';
+const GIST_FILENAME = 'chain-gang.json';
+const GIST_DESCRIPTION = 'CHAIN-GANG – saved graph';
 
 /**
  * Save graph + brief as a GitHub Gist.

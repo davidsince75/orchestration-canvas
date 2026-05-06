@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Default capabilities for Orchestration Canvas",
+  "description": "Default capabilities for CHAIN-GANG",
   "windows": ["main"],
   "permissions": [
     "core:default",

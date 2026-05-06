@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Orchestration Canvas",
+  "productName": "CHAIN-GANG",
   "version": "0.3.0",
-  "identifier": "com.orchestration-canvas.app",
+  "identifier": "com.chain-gang.app",
   "build": {
     "beforeDevCommand": "npm run dev:frontend",
     "beforeBuildCommand": "npm run build:frontend",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Orchestration Canvas",
+        "title": "CHAIN-GANG",
         "width": 1280,
         "height": 820,
         "minWidth": 1024,

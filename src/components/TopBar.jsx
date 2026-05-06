@@ -7,7 +7,7 @@ export function TopBar({ apiKey, setApiKey, canUndo, canRedo, onUndo, onRedo, on
   const inRunMode = runMode === 'run';
   return (
     <div className="topbar">
-      <span className="topbar-title">Orchestration Canvas</span>
+      <span className="topbar-title">CHAIN-GANG</span>
       <div className="topbar-divider" />
 
       {/* Design / Run toggle */}
