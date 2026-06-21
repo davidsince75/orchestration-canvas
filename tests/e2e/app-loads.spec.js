@@ -23,7 +23,7 @@ test.describe('App loads', () => {
   test('top bar is visible with app title', async ({ page }) => {
     const title = page.locator('.topbar-title');
     await expect(title).toBeVisible();
-    await expect(title).toHaveText('Orchestration Canvas');
+    await expect(title).toHaveText('CHAIN-GANG');
   });
 
   test('Design and Run mode buttons are present in top bar', async ({ page }) => {

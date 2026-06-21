@@ -122,9 +122,24 @@ export function EdgeLayer({ nodes, edges, selectedEdgeId, draggingEdge, nodeRunS
               d={`M ${x1},${y1} L ${x2},${y2}`}
               stroke={sel ? '#9b8fe0' : '#383848'}
               strokeWidth={sel ? 2.5 : 1.5}
+              strokeDasharray={edge.mode === 'fresh' ? '6 3' : undefined}
               fill="none"
               markerEnd={sel ? 'url(#arrowhead-sel)' : 'url(#arrowhead)'}
             />
+
+            {/* Fresh-mode badge on selected edge */}
+            {sel && edge.mode === 'fresh' && (
+              <text
+                x={mx} y={my + 14}
+                fill="#a78bfa"
+                fontSize="9"
+                textAnchor="middle"
+                fontFamily="-apple-system, sans-serif"
+                opacity="0.9"
+              >
+                fresh
+              </text>
+            )}
 
             {/* Edge label */}
             {edge.label && (

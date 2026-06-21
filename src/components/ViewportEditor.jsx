@@ -13,6 +13,9 @@ import { DataSourceEditor } from './DataSourceEditor.jsx';
 
 const HELP = {
   name:         'A short, descriptive identifier for this node — shown on the canvas.',
+  sharedMemoryReads:  'Keys to read from the shared run-memory store before this node executes. Values are injected into the node\'s context.',
+  sharedMemoryWrites: 'Keys to write this node\'s output into after it completes. Downstream nodes can read these values.',
+  toolType:           'How this tool executes: call a REST endpoint, run a shell command, or read/write/search files.',
   role:         'One sentence describing what this node does within the orchestration. Used by the Architect for analysis.',
   systemPrompt: 'The system-level instructions sent to the LLM powering this node. Define persona, constraints, and output format here.',
   endpoint:     'The API URL or function signature this tool calls. Supports path parameters, e.g. POST /api/search?q={query}.',
@@ -133,7 +136,85 @@ function OutputCustomSections({ sections, onChange }) {
   );
 }
 
-export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDeleteNode, apiKey, generating, prefs }) {
+function SharedMemoryEditor({ node, onChange, tip }) {
+  const reads  = (node.sharedMemoryReads  || []).join('\n');
+  const writes = (node.sharedMemoryWrites || []).join('\n');
+  const parse  = text => text.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+
+  return (
+    <div className="field-group">
+      <label className="field-label">Shared Memory {tip('sharedMemoryReads')}</label>
+      <label className="field-label" style={{ fontSize: 10, opacity: 0.65, marginTop: 0 }}>Read keys (one per line)</label>
+      <textarea
+        className="field-textarea"
+        rows={2}
+        value={reads}
+        placeholder={'e.g. user_context\nsearch_results'}
+        onChange={e => onChange({ reads: parse(e.target.value), writes: node.sharedMemoryWrites || [] })}
+      />
+      <label className="field-label" style={{ fontSize: 10, opacity: 0.65, marginTop: 4 }}>Write keys (one per line)</label>
+      <textarea
+        className="field-textarea"
+        rows={2}
+        value={writes}
+        placeholder={'e.g. summary\nextracted_data'}
+        onChange={e => onChange({ reads: node.sharedMemoryReads || [], writes: parse(e.target.value) })}
+      />
+    </div>
+  );
+}
+
+// ── Edge properties panel ─────────────────────────────────────────────────────
+
+function EdgePanel({ edge, graph, onUpdateEdge, onDeleteEdge }) {
+  const fromNode = graph.nodes.find(n => n.id === edge.from);
+  const toNode   = graph.nodes.find(n => n.id === edge.to);
+  const mode     = edge.mode || 'continue';
+
+  return (
+    <div className="viewport-editor">
+      <div className="vp-header">
+        <div className="vp-header-dot" style={{ background: '#6c5ce7' }} />
+        <span className="vp-header-name">Connection</span>
+        <span className="vp-header-type">edge</span>
+        <button className="vp-delete-btn" onClick={() => onDeleteEdge(edge.id)} title="Delete connection (Del)">🗑</button>
+      </div>
+      <div className="vp-body">
+        <div className="field-group">
+          <label className="field-label">From → To</label>
+          <div className="field-hint">{fromNode?.name || edge.from} → {toNode?.name || edge.to}</div>
+        </div>
+        <div className="field-group">
+          <label className="field-label">Label</label>
+          <input
+            className="field-input"
+            value={edge.label || ''}
+            placeholder="Optional route label"
+            onChange={e => onUpdateEdge({ ...edge, label: e.target.value })}
+          />
+        </div>
+        <div className="field-group">
+          <label className="field-label">Context Mode</label>
+          <select
+            className="field-select"
+            value={mode}
+            onChange={e => onUpdateEdge({ ...edge, mode: e.target.value })}
+          >
+            <option value="continue">Continue — pass full upstream context</option>
+            <option value="fresh">Fresh — skip raw output; use shared memory</option>
+          </select>
+          <div className="field-hint" style={{ marginTop: 4 }}>
+            {mode === 'continue'
+              ? 'The downstream node receives the full accumulated output history from all upstream nodes.'
+              : 'The downstream node starts with a clean context. Use Shared Memory read keys to receive structured data instead of raw output.'}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ViewportEditor({ node, selectedEdge, graph, onUpdateNode, onUpdateEdge, onUpdateGraph, onDeleteNode, onDeleteEdge, apiKey, generating, prefs }) {
   const [refineText,    setRefineText]    = useState('');
   const [refining,      setRefining]      = useState(false);
   const [refineErr,     setRefineErr]     = useState('');
@@ -228,9 +309,19 @@ export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDel
   };
 
   if (!node) {
+    if (selectedEdge) {
+      return (
+        <EdgePanel
+          edge={selectedEdge}
+          graph={graph}
+          onUpdateEdge={onUpdateEdge}
+          onDeleteEdge={onDeleteEdge}
+        />
+      );
+    }
     return (
       <div className="viewport-editor">
-        <div className="vp-empty">Click any node to inspect<br />and edit its properties</div>
+        <div className="vp-empty">Click any node or connection<br />to inspect and edit its properties</div>
       </div>
     );
   }
@@ -274,6 +365,43 @@ export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDel
           <label className="field-label">Role Description {tip('role')}</label>
           <input className="field-input" value={node.role || ''} onChange={e => up('role', e.target.value)} />
         </div>
+        <div className="field-group">
+          <label className="field-label">Execution Phase</label>
+          <select
+            className="field-select"
+            value={node.phase || ''}
+            onChange={e => up('phase', e.target.value)}
+          >
+            <option value="">Unset</option>
+            <option value="research">Research</option>
+            <option value="synthesis">Synthesis</option>
+            <option value="implementation">Implementation</option>
+            <option value="verification">Verification</option>
+          </select>
+        </div>
+        {(node.type === 'orchestrator' || node.type === 'agent') && (
+          <div className="field-group">
+            <label className="field-label">Tool Tier</label>
+            <select
+              className="field-select"
+              value={node.toolTier || 'full'}
+              onChange={e => up('toolTier', e.target.value)}
+            >
+              <option value="full">Full — all tools available</option>
+              <option value="simple">Simple — Bash, Read, Edit only</option>
+            </select>
+          </div>
+        )}
+        <div className="field-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label className="field-label" style={{ margin: 0 }}>Use Scratchpad</label>
+          <input
+            type="checkbox"
+            checked={!!node.useScratchpad}
+            onChange={e => up('useScratchpad', e.target.checked)}
+            style={{ width: 14, height: 14, cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: 10, opacity: 0.55 }}>Inject shared temp dir path into context</span>
+        </div>
         {(node.type === 'orchestrator' || node.type === 'agent') && (
           <div className="field-group">
             <div className="field-label-row">
@@ -308,10 +436,85 @@ export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDel
           </div>
         )}
         {node.type === 'tool' && (
-          <div className="field-group">
-            <label className="field-label">API Endpoint / Function Signature {tip('endpoint')}</label>
-            <input className="field-input" value={node.endpoint || ''} placeholder="e.g. POST /api/search" onChange={e => up('endpoint', e.target.value)} style={{ fontFamily: 'Consolas, monospace', fontSize: 11 }} />
-          </div>
+          <>
+            <div className="field-group">
+              <label className="field-label">Tool Type {tip('toolType')}</label>
+              <select
+                className="field-select"
+                value={node.toolType || 'rest'}
+                onChange={e => up('toolType', e.target.value)}
+              >
+                <option value="rest">REST API Call</option>
+                <option value="bash">Bash Command</option>
+                <option value="file_read">File Read</option>
+                <option value="file_write">File Write</option>
+                <option value="grep">Grep / Regex Search</option>
+              </select>
+            </div>
+
+            {(node.toolType || 'rest') === 'rest' && (
+              <div className="field-group">
+                <label className="field-label">API Endpoint {tip('endpoint')}</label>
+                <input
+                  className="field-input"
+                  value={node.toolRestUrl || node.endpoint || ''}
+                  placeholder="GET https://api.example.com/resource"
+                  onChange={e => up('toolRestUrl', e.target.value)}
+                  style={{ fontFamily: 'Consolas, monospace', fontSize: 11 }}
+                />
+                <label className="field-label" style={{ marginTop: 6 }}>Request Body (optional)</label>
+                <textarea
+                  className="field-textarea"
+                  rows={3}
+                  value={node.toolRestBody || ''}
+                  placeholder='{"query": "{{input}}"}'
+                  onChange={e => up('toolRestBody', e.target.value)}
+                  style={{ fontFamily: 'Consolas, monospace', fontSize: 11 }}
+                />
+              </div>
+            )}
+
+            {node.toolType === 'bash' && (
+              <div className="field-group">
+                <label className="field-label">Shell Command</label>
+                <textarea
+                  className="field-textarea"
+                  rows={3}
+                  value={node.toolBashCmd || ''}
+                  placeholder="echo 'hello world'"
+                  onChange={e => up('toolBashCmd', e.target.value)}
+                  style={{ fontFamily: 'Consolas, monospace', fontSize: 11 }}
+                />
+                <div className="field-hint">Runs on the host machine via sh -c. Use with caution.</div>
+              </div>
+            )}
+
+            {(node.toolType === 'file_read' || node.toolType === 'file_write' || node.toolType === 'grep') && (
+              <div className="field-group">
+                <label className="field-label">File Path</label>
+                <input
+                  className="field-input"
+                  value={node.toolFilePath || ''}
+                  placeholder="/path/to/file.txt"
+                  onChange={e => up('toolFilePath', e.target.value)}
+                  style={{ fontFamily: 'Consolas, monospace', fontSize: 11 }}
+                />
+              </div>
+            )}
+
+            {node.toolType === 'grep' && (
+              <div className="field-group">
+                <label className="field-label">Grep Pattern (regex)</label>
+                <input
+                  className="field-input"
+                  value={node.toolGrepPattern || ''}
+                  placeholder="error|warn"
+                  onChange={e => up('toolGrepPattern', e.target.value)}
+                  style={{ fontFamily: 'Consolas, monospace', fontSize: 11 }}
+                />
+              </div>
+            )}
+          </>
         )}
         {node.type === 'memory' && (
           <>
@@ -731,6 +934,15 @@ export function ViewportEditor({ node, graph, onUpdateNode, onUpdateGraph, onDel
           node={node}
           onChange={sources => up('dataSources', sources)}
           prefs={prefs}
+        />
+        <SharedMemoryEditor
+          node={node}
+          tip={tip}
+          onChange={({ reads, writes }) => onUpdateNode({
+            ...node,
+            sharedMemoryReads:  reads,
+            sharedMemoryWrites: writes,
+          })}
         />
         {connections.length > 0 && (
           <div className="field-group">

@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import {
   startRun, cancelRun, respondHumanReview,
   onNodeStart, onNodeDone, onNodeError, onNodeToken,
-  onRunComplete, onRunCancelled, onHumanReview,
+  onRunComplete, onRunCancelled, onHumanReview, onScratchpadReady,
 } from '../api/runEngine.js';
 
 /**
@@ -61,7 +61,7 @@ export function useRunEngine(graph, apiKey, brief, onError) {
       });
     };
 
-    const [u1, u2, u3, u4, u5, u6, u7] = await Promise.all([
+    const [u1, u2, u3, u4, u5, u6, u7, u8] = await Promise.all([
       onNodeStart(({ nodeId }) =>
         updateNode(nodeId, { status: 'running', partialOutput: null })
       ),
@@ -105,8 +105,11 @@ export function useRunEngine(graph, apiKey, brief, onError) {
         }
         setPendingReview(payload);
       }),
+      onScratchpadReady(({ path }) => {
+        setRunState(prev => prev ? { ...prev, scratchpadPath: path } : prev);
+      }),
     ]);
-    unlistenersRef.current = [u1, u2, u3, u4, u5, u6, u7];
+    unlistenersRef.current = [u1, u2, u3, u4, u5, u6, u7, u8];
 
     try {
       const runId = await startRun(graph, apiKey, brief);

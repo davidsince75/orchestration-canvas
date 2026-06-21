@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { downloadFile, exportMermaid, exportPython, exportTypeScript,
          exportAnthropicSDK, exportLangGraph, exportCrewAI } from '../utils/export.js';
+import { exportOpenMultiAgent } from '../utils/exportToOpenMultiAgent.js';
 import { validateImportedGraph } from '../utils/graph.js';
 import { saveGist, loadGist } from '../api/github.js';
 import { useToast } from './ToastProvider.jsx';
@@ -70,6 +71,13 @@ export function ExportImportMenu({ graph, brief, onImport, prefs }) {
     const code = exportCrewAI(graph);
     downloadFile(code, `orchestration-crewai-${Date.now()}.py`, 'text/x-python');
     toast('CrewAI scaffold downloaded', 'success');
+    setOpen(false);
+  };
+
+  const handleExportOpenMultiAgent = () => {
+    const code = exportOpenMultiAgent(graph);
+    downloadFile(code, `orchestration-open-multi-agent-${Date.now()}.ts`, 'text/typescript');
+    toast('open-multi-agent TypeScript file downloaded', 'success');
     setOpen(false);
   };
 
@@ -153,6 +161,9 @@ export function ExportImportMenu({ graph, brief, onImport, prefs }) {
           </button>
           <button className="export-dropdown-item" onClick={handleExportCrewAI} disabled={!hasGraph}>
             <span className="di">👥</span> CrewAI scaffold
+          </button>
+          <button className="export-dropdown-item" onClick={handleExportOpenMultiAgent} disabled={!hasGraph}>
+            <span className="di">⬡</span> open-multi-agent (TypeScript)
           </button>
           <div className="export-dropdown-sep" />
           <button className="export-dropdown-item" onClick={() => { fileInputRef.current.click(); setOpen(false); }}>

@@ -1,5 +1,12 @@
 import { NODE_STYLES } from '../data/nodeStyles.js';
 
+const PHASE_COLORS = {
+  research:       { bg: '#1e3a5f', color: '#60a5fa' },
+  synthesis:      { bg: '#3b1f5e', color: '#c084fc' },
+  implementation: { bg: '#1a3a2a', color: '#4ade80' },
+  verification:   { bg: '#3a2010', color: '#fb923c' },
+};
+
 const STATUS_OVERLAY = {
   running:   <span className="run-overlay run-overlay-running"   title="Running…">⟳</span>,
   done:      <span className="run-overlay run-overlay-done"      title="Done">✓</span>,
@@ -34,6 +41,14 @@ export function NodeCard({ node, isSelected, isHighlighted, onMouseDown, onPortM
         <span className="node-name">{node.name}</span>
         <span className="node-type-badge" style={{ color: s.badge, background: s.badgeBg }}>{node.type}</span>
       </div>
+      {node.phase && PHASE_COLORS[node.phase] && (
+        <span
+          className="node-phase-badge"
+          style={{ background: PHASE_COLORS[node.phase].bg, color: PHASE_COLORS[node.phase].color }}
+        >
+          {node.phase}
+        </span>
+      )}
       <p className="node-role">{node.role}</p>
       <div className="node-port port-in"
         onMouseDown={e => { e.stopPropagation(); e.preventDefault(); }}

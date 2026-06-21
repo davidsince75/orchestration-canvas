@@ -50,4 +50,5 @@ export async function respondHumanReview(runId, nodeId, approved, feedback = '')
   return tauriInvoke('respond_human_review', { run_id: runId, node_id: nodeId, approved, feedback });
 }
 
-export function onHumanReview(handler) { return tauriListen('run:human-review', handler); }
+export function onHumanReview(handler)     { return tauriListen('run:human-review', handler); }
+export function onScratchpadReady(handler) { return tauriListen('run:scratchpad',    handler); }

@@ -21,6 +21,12 @@ struct HumanReviewDecision {
 /// Keyed by "{run_id}:{node_id}". Sender is consumed when the reviewer responds.
 struct HumanReviewRegistry(Mutex<HashMap<String, oneshot::Sender<HumanReviewDecision>>>);
 
+// ── Shared memory store ───────────────────────────────────────────────────────
+
+/// App-level key/value store shared across nodes within a single run.
+/// Cleared at the start of each run_graph invocation.
+struct SharedMemoryStore(Mutex<HashMap<String, String>>);
+
 // ── Payload types ─────────────────────────────────────────────────────────────
 
 #[derive(serde::Deserialize)]
@@ -110,6 +116,38 @@ struct GraphNode {
     // ── Data sources ──────────────────────────────────────────────────────────
     #[serde(rename = "dataSources", default)]
     data_sources: Vec<DataSource>,
+    // ── Tool node fields ──────────────────────────────────────────────────────
+    /// Legacy REST endpoint field (kept for backwards compatibility)
+    #[serde(default)]
+    endpoint: String,
+    /// "rest" | "bash" | "file_read" | "file_write" | "grep"
+    #[serde(rename = "toolType", default)]
+    tool_type: String,
+    #[serde(rename = "toolRestUrl", default)]
+    tool_rest_url: String,
+    #[serde(rename = "toolRestBody", default)]
+    tool_rest_body: String,
+    #[serde(rename = "toolBashCmd", default)]
+    tool_bash_cmd: String,
+    #[serde(rename = "toolFilePath", default)]
+    tool_file_path: String,
+    #[serde(rename = "toolGrepPattern", default)]
+    tool_grep_pattern: String,
+    // ── Shared memory fields ──────────────────────────────────────────────────
+    #[serde(rename = "sharedMemoryReads", default)]
+    shared_memory_reads: Vec<String>,
+    #[serde(rename = "sharedMemoryWrites", default)]
+    shared_memory_writes: Vec<String>,
+    // ── Coordinator-mode fields ───────────────────────────────────────────────
+    /// Execution phase: "research" | "synthesis" | "implementation" | "verification"
+    #[serde(default)]
+    phase: String,
+    /// Tool capability tier: "full" (default) | "simple" (Bash, Read, Edit only)
+    #[serde(rename = "toolTier", default)]
+    tool_tier: String,
+    /// When true, the run's scratchpad path is injected into this node's context
+    #[serde(rename = "useScratchpad", default)]
+    use_scratchpad: bool,
 }
 
 #[derive(serde::Deserialize, Clone, Debug, Default)]
@@ -144,6 +182,10 @@ struct GraphEdge {
     to:    String,
     #[serde(default)]
     label: String,
+    /// "continue" (default) — include upstream output in context.
+    /// "fresh" — skip raw upstream output; node relies on shared memory reads.
+    #[serde(default)]
+    mode:  String,
 }
 
 #[derive(serde::Deserialize, Debug)]
@@ -366,6 +408,57 @@ fn topological_sort(nodes: &[GraphNode], edges: &[GraphEdge]) -> Result<Vec<Stri
         return Err("Graph contains a cycle — cannot execute".to_string());
     }
     Ok(order)
+}
+
+// ── Topological levels (parallel-wave decomposition) ─────────────────────────
+//
+// Returns the nodes grouped into "waves" where each wave contains nodes that
+// have no dependency on any other node in the same wave — all nodes in a wave
+// can execute concurrently.
+
+fn topological_levels(nodes: &[GraphNode], edges: &[GraphEdge]) -> Result<Vec<Vec<String>>, String> {
+    let node_ids: HashSet<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+
+    let mut in_degree: HashMap<&str, usize> = nodes.iter().map(|n| (n.id.as_str(), 0)).collect();
+    let mut adj: HashMap<&str, Vec<&str>>   = nodes.iter().map(|n| (n.id.as_str(), vec![])).collect();
+
+    for edge in edges {
+        if !node_ids.contains(edge.from.as_str()) || !node_ids.contains(edge.to.as_str()) {
+            continue;
+        }
+        *in_degree.entry(edge.to.as_str()).or_insert(0) += 1;
+        adj.entry(edge.from.as_str()).or_default().push(edge.to.as_str());
+    }
+
+    let mut levels: Vec<Vec<String>> = Vec::new();
+    let mut current: Vec<&str> = in_degree.iter()
+        .filter(|(_, &d)| d == 0)
+        .map(|(&id, _)| id)
+        .collect();
+    let mut total = 0usize;
+
+    while !current.is_empty() {
+        levels.push(current.iter().map(|s| s.to_string()).collect());
+        total += current.len();
+        let mut next: Vec<&str> = Vec::new();
+        for id in &current {
+            if let Some(neighbors) = adj.get(id) {
+                for &nb in neighbors {
+                    let deg = in_degree.entry(nb).or_insert(0);
+                    *deg = deg.saturating_sub(1);
+                    if *deg == 0 {
+                        next.push(nb);
+                    }
+                }
+            }
+        }
+        current = next;
+    }
+
+    if total != nodes.len() {
+        return Err("Graph contains a cycle — cannot execute".to_string());
+    }
+    Ok(levels)
 }
 
 // ── Anthropic API helpers ─────────────────────────────────────────────────────
@@ -931,6 +1024,78 @@ async fn call_node_llm(
             ).await
         }
 
+        // ── Tool — dispatch by toolType ───────────────────────────────────────
+        "tool" => {
+            let tool_type = if node.tool_type.is_empty() { "rest" } else { node.tool_type.as_str() };
+            match tool_type {
+                "bash" => {
+                    if node.tool_bash_cmd.is_empty() {
+                        return Err(format!("Tool node \"{}\" has no bash command configured", node.name));
+                    }
+                    let output = tokio::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(&node.tool_bash_cmd)
+                        .output()
+                        .await
+                        .map_err(|e| format!("Bash execution error: {e}"))?;
+                    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                    if !output.status.success() && !stderr.is_empty() {
+                        Ok(format!("Exit {}\nstdout: {stdout}\nstderr: {stderr}", output.status))
+                    } else {
+                        Ok(stdout)
+                    }
+                }
+                "file_read" => {
+                    if node.tool_file_path.is_empty() {
+                        return Err(format!("Tool node \"{}\" has no file path configured", node.name));
+                    }
+                    std::fs::read_to_string(&node.tool_file_path)
+                        .map_err(|e| format!("File read error: {e}"))
+                }
+                "file_write" => {
+                    if node.tool_file_path.is_empty() {
+                        return Err(format!("Tool node \"{}\" has no file path configured", node.name));
+                    }
+                    let bytes = user_message.len();
+                    std::fs::write(&node.tool_file_path, user_message)
+                        .map_err(|e| format!("File write error: {e}"))?;
+                    Ok(format!("Written {} bytes to {}", bytes, node.tool_file_path))
+                }
+                "grep" => {
+                    if node.tool_file_path.is_empty() || node.tool_grep_pattern.is_empty() {
+                        return Err(format!(
+                            "Tool node \"{}\" requires both a file path and a grep pattern",
+                            node.name
+                        ));
+                    }
+                    let content = std::fs::read_to_string(&node.tool_file_path)
+                        .map_err(|e| format!("Grep file read error: {e}"))?;
+                    let re = regex::Regex::new(&node.tool_grep_pattern)
+                        .map_err(|e| format!("Invalid grep pattern: {e}"))?;
+                    let matches: Vec<&str> = content.lines()
+                        .filter(|line| re.is_match(line))
+                        .collect();
+                    Ok(format!("{} match(es):\n{}", matches.len(), matches.join("\n")))
+                }
+                // "rest" and default — HTTP GET to the configured endpoint
+                _ => {
+                    let url = if !node.tool_rest_url.is_empty() {
+                        node.tool_rest_url.as_str()
+                    } else {
+                        node.endpoint.as_str()
+                    };
+                    if url.is_empty() {
+                        Ok(user_message.to_string())
+                    } else {
+                        let resp = client.get(url).send().await
+                            .map_err(|e| format!("REST tool error: {e}"))?;
+                        resp.text().await.map_err(|e| format!("REST body read error: {e}"))
+                    }
+                }
+            }
+        }
+
         // ── All other types — streaming LLM call ──────────────────────────────
         _ => {
             let provider = if node.llm_provider.is_empty() { "claude-api" } else { node.llm_provider.as_str() };
@@ -1088,6 +1253,82 @@ fn pick_folder_path(app: tauri::AppHandle) -> Result<Option<String>, String> {
     Ok(Some(path.to_string_lossy().to_string()))
 }
 
+// ── Context builder (continue / fresh edge mode) ─────────────────────────────
+
+/// Build the base user message for a node, respecting edge modes.
+///
+/// • "continue" edges (default): the node receives the full accumulated `ctx`
+///   string — the classic rolling history of all previous outputs.
+/// • "fresh" edges: raw upstream output is excluded; only outputs from
+///   explicitly "continue"-moded direct predecessors are included, plus the
+///   initial prompt.  The node is expected to use shared memory reads for
+///   structured data instead.
+fn build_context_for_node(
+    node_id:        &str,
+    ctx:            &str,
+    edges:          &[GraphEdge],
+    node_outputs:   &HashMap<String, String>,
+    node_map:       &HashMap<String, GraphNode>,
+    initial_prompt: &str,
+) -> String {
+    let has_fresh = edges.iter()
+        .filter(|e| e.to == node_id)
+        .any(|e| e.mode == "fresh");
+
+    let raw = if !has_fresh {
+        if ctx.is_empty() { initial_prompt.to_string() } else { ctx.to_string() }
+    } else {
+        let parts: Vec<String> = edges.iter()
+            .filter(|e| e.to == node_id && e.mode != "fresh")
+            .filter_map(|e| {
+                let name = node_map.get(&e.from).map(|n| n.name.as_str()).unwrap_or("?");
+                node_outputs.get(&e.from).map(|out| format!("[{}]: {}", name, out))
+            })
+            .collect();
+        if parts.is_empty() {
+            initial_prompt.to_string()
+        } else {
+            format!("{}\n\n{}", initial_prompt, parts.join("\n\n"))
+        }
+    };
+
+    if raw.len() > 10_000 {
+        format!("[...context truncated...]\n{}", &raw[raw.len() - 10_000..])
+    } else {
+        raw
+    }
+}
+
+// ── Worker context injector (orchestrator nodes) ──────────────────────────────
+
+/// Build a context header for Orchestrator nodes describing the downstream
+/// agents they can direct — their names, types, and tool tiers.
+fn build_worker_context(
+    node_id:   &str,
+    node_type: &str,
+    edges:     &[GraphEdge],
+    node_map:  &HashMap<String, GraphNode>,
+) -> String {
+    if node_type != "orchestrator" { return String::new(); }
+
+    let downstream: Vec<String> = edges.iter()
+        .filter(|e| e.from == node_id)
+        .filter_map(|e| node_map.get(&e.to))
+        .map(|n| {
+            let tier = if n.tool_tier == "simple" { " [simple tools]" } else { "" };
+            let phase = if !n.phase.is_empty() { format!(" [phase: {}]", n.phase) } else { String::new() };
+            format!("  - {} ({}{}{})", n.name, n.node_type, tier, phase)
+        })
+        .collect();
+
+    if downstream.is_empty() { return String::new(); }
+
+    format!(
+        "=== Downstream Workers ===\nThe following agents are connected downstream:\n{}\n\n",
+        downstream.join("\n")
+    )
+}
+
 // ── Run graph command ─────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -1097,8 +1338,9 @@ async fn run_graph(
     api_key:        String,
     initial_prompt: String,
 ) -> Result<String, String> {
-    // 1. Topological sort — fail fast if cyclic
-    let order = topological_sort(&graph.nodes, &graph.edges)?;
+    // 1. Topological sort (for DB pre-insertion order) + level decomposition
+    let order  = topological_sort(&graph.nodes, &graph.edges)?;
+    let levels = topological_levels(&graph.nodes, &graph.edges)?;
 
     // 2. Build a node lookup by id
     let node_map: HashMap<String, GraphNode> = graph
@@ -1134,7 +1376,16 @@ async fn run_graph(
         }
     }
 
-    // 4. Create cancellation channel and register sender
+    // 4. Create per-run scratchpad directory
+    let scratchpad_path = std::env::temp_dir().join(format!("oc-scratch-{}", run_id));
+    let _ = std::fs::create_dir_all(&scratchpad_path);
+    let scratchpad_str = scratchpad_path.to_string_lossy().to_string();
+    let _ = app.emit("run:scratchpad", serde_json::json!({
+        "runId": run_id,
+        "path":  scratchpad_str.clone(),
+    }));
+
+    // 5. Create cancellation channel and register sender
     let (cancel_tx, cancel_rx) = watch::channel(false);
     {
         let registry = app.state::<CancelRegistry>();
@@ -1142,7 +1393,7 @@ async fn run_graph(
         map.insert(run_id.clone(), cancel_tx);
     }
 
-    // 5. Spawn execution — returns run_id immediately to frontend
+    // 6. Spawn execution — returns run_id immediately to frontend
     let run_id_clone       = run_id.clone();
     let app_clone          = app.clone();
     let initial_prompt_ref = initial_prompt.clone();
@@ -1152,221 +1403,423 @@ async fn run_graph(
             .timeout(std::time::Duration::from_secs(120))
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
-        let mut ctx       = String::new(); // accumulated context passed between nodes
-        let mut any_error = false;
-        let mut cancelled = false;
+        let mut ctx          = String::new();
+        let mut node_outputs: HashMap<String, String> = HashMap::new();
+        let mut any_error    = false;
+        let mut cancelled    = false;
+
+        // ── Shared memory store — cleared fresh for each run ─────────────────
+        let shared_memory: std::sync::Arc<std::sync::Mutex<HashMap<String, String>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
 
         // ── Router branching state ────────────────────────────────────────────
-        // Set of node IDs that should be skipped because they are on non-selected router branches.
         let mut skipped: HashSet<String> = HashSet::new();
-        // Set of (from, to) pairs representing router → non-selected-branch edges.
         let mut router_skip_edges: HashSet<(String, String)> = HashSet::new();
 
-        'nodes: for node_id in &order {
-            // Check cancellation before starting each node
-            if *cancel_rx.borrow() {
-                cancelled = true;
-                break 'nodes;
-            }
+        'levels: for level in &levels {
+            if *cancel_rx.borrow() { cancelled = true; break 'levels; }
 
-            let node = match node_map.get(node_id) {
-                Some(n) => n,
-                None    => continue,
-            };
-
-            // ── Router branching: skip nodes whose only upstream paths are skipped ──
-            let incoming: Vec<&GraphEdge> = graph.edges.iter()
-                .filter(|e| e.to.as_str() == node_id.as_str())
-                .collect();
-            let should_skip = !incoming.is_empty() && incoming.iter().all(|e| {
-                skipped.contains(e.from.as_str())
-                    || router_skip_edges.contains(&(e.from.clone(), e.to.clone()))
+            let has_blocking = level.iter().any(|id| {
+                node_map.get(id.as_str())
+                    .map(|n| n.node_type == "human-in-loop")
+                    .unwrap_or(false)
             });
-            if should_skip {
-                skipped.insert(node_id.to_string());
-                let _ = app_clone.emit("run:node-done", serde_json::json!({
-                    "runId":  run_id_clone,
-                    "nodeId": node_id,
-                    "output": "⊘ Skipped — not on selected route",
-                }));
-                if let Ok(conn) = open_db(&app_clone) {
-                    let _ = conn.execute(
-                        "UPDATE run_nodes SET status = 'cancelled', output = ?1, finished_at = ?2 WHERE run_id = ?3 AND node_id = ?4",
-                        rusqlite::params!["Skipped", now_iso(), run_id_clone, node_id],
-                    );
-                }
-                continue;
-            }
 
-            // emit node-start
-            let _ = app_clone.emit("run:node-start", serde_json::json!({
-                "runId":  run_id_clone,
-                "nodeId": node_id,
-            }));
+            // ── Parallel wave: multiple independent nodes, none blocking ─────
+            if level.len() > 1 && !has_blocking {
+                let ctx_snapshot = ctx.clone();
 
-            // update DB: running
-            if let Ok(conn) = open_db(&app_clone) {
-                let _ = conn.execute(
-                    "UPDATE run_nodes SET status = 'running', started_at = ?1 WHERE run_id = ?2 AND node_id = ?3",
-                    rusqlite::params![now_iso(), run_id_clone, node_id],
-                );
-            }
+                // Collect (node_id, node_name, node_type, node_clone, user_msg) for
+                // each non-skipped node in this wave.
+                let mut wave: Vec<(String, String, String, GraphNode, String)> = Vec::new();
 
-            // cap context at ~10k chars to avoid token overflow
-            let base_msg = if ctx.len() > 10_000 {
-                format!("[...context truncated...]\n{}", &ctx[ctx.len() - 10_000..])
-            } else if ctx.is_empty() {
-                initial_prompt_ref.clone()
-            } else {
-                ctx.clone()
-            };
-
-            // Prepend any readable data sources attached to this node
-            let ds_prefix = read_data_sources(&node.data_sources, &client).await;
-            let user_msg = if ds_prefix.is_empty() {
-                base_msg
-            } else {
-                format!("{ds_prefix}{base_msg}")
-            };
-
-            // ── Human-in-loop: block and wait for reviewer response ──────────
-            let call_result: Result<String, String> = if node.node_type == "human-in-loop" {
-                let instructions = if node.human_prompt.is_empty() {
-                    "Please review the content above and approve or reject.".to_string()
-                } else {
-                    node.human_prompt.clone()
-                };
-                let preview = &user_msg[..user_msg.len().min(1500)];
-                let review_key = format!("{}:{}", run_id_clone, node_id);
-
-                let (tx, rx) = oneshot::channel::<HumanReviewDecision>();
-                {
-                    let registry = app_clone.state::<HumanReviewRegistry>();
-                    if let Ok(mut map) = registry.0.lock() {
-                        map.insert(review_key.clone(), tx);
+                for node_id in level {
+                    let node = match node_map.get(node_id.as_str()) {
+                        Some(n) => n,
+                        None    => continue,
                     };
+
+                    // Skip check
+                    let incoming: Vec<&GraphEdge> = graph.edges.iter()
+                        .filter(|e| e.to.as_str() == node_id.as_str())
+                        .collect();
+                    let should_skip = !incoming.is_empty() && incoming.iter().all(|e| {
+                        skipped.contains(e.from.as_str())
+                            || router_skip_edges.contains(&(e.from.clone(), e.to.clone()))
+                    });
+                    if should_skip {
+                        skipped.insert(node_id.to_string());
+                        let _ = app_clone.emit("run:node-done", serde_json::json!({
+                            "runId":  run_id_clone,
+                            "nodeId": node_id,
+                            "output": "⊘ Skipped — not on selected route",
+                        }));
+                        if let Ok(conn) = open_db(&app_clone) {
+                            let _ = conn.execute(
+                                "UPDATE run_nodes SET status = 'cancelled', output = ?1, finished_at = ?2 WHERE run_id = ?3 AND node_id = ?4",
+                                rusqlite::params!["Skipped", now_iso(), run_id_clone, node_id],
+                            );
+                        }
+                        continue;
+                    }
+
+                    // Emit node-start + DB running
+                    let _ = app_clone.emit("run:node-start", serde_json::json!({
+                        "runId":  run_id_clone,
+                        "nodeId": node_id,
+                    }));
+                    if let Ok(conn) = open_db(&app_clone) {
+                        let _ = conn.execute(
+                            "UPDATE run_nodes SET status = 'running', started_at = ?1 WHERE run_id = ?2 AND node_id = ?3",
+                            rusqlite::params![now_iso(), run_id_clone, node_id],
+                        );
+                    }
+
+                    // Build base_msg using continue/fresh edge logic (snapshot of ctx)
+                    let base_msg = build_context_for_node(
+                        node_id, &ctx_snapshot, &graph.edges,
+                        &node_outputs, &node_map, &initial_prompt_ref,
+                    );
+
+                    // Shared memory reads
+                    let sm_prefix = {
+                        if node.shared_memory_reads.is_empty() {
+                            String::new()
+                        } else if let Ok(guard) = shared_memory.lock() {
+                            let parts: Vec<String> = node.shared_memory_reads.iter()
+                                .filter_map(|key| guard.get(key).map(|v| format!("[memory:{}] {}", key, v)))
+                                .collect();
+                            if parts.is_empty() { String::new() }
+                            else { format!("=== Shared Memory ===\n{}\n\n", parts.join("\n")) }
+                        } else { String::new() }
+                    };
+
+                    // Scratchpad path injection
+                    let scratch_prefix = if node.use_scratchpad {
+                        format!("=== Scratchpad ===\nPath: {}\nRead and write files here to share state with other agents.\n\n", scratchpad_str)
+                    } else { String::new() };
+
+                    // Worker context for orchestrators
+                    let worker_ctx = build_worker_context(
+                        node_id, &node.node_type, &graph.edges, &node_map,
+                    );
+
+                    // Tool tier annotation
+                    let tier_note = if node.tool_tier == "simple"
+                        && (node.node_type == "agent" || node.node_type == "orchestrator") {
+                        "[Mode: simple tools — Bash, File Read, File Edit only]\n\n".to_string()
+                    } else { String::new() };
+
+                    let ds_prefix = read_data_sources(&node.data_sources, &client).await;
+                    let user_msg = format!("{worker_ctx}{sm_prefix}{scratch_prefix}{tier_note}{ds_prefix}{base_msg}");
+
+                    wave.push((
+                        node_id.clone(),
+                        node.name.clone(),
+                        node.node_type.clone(),
+                        node.clone(),
+                        user_msg,
+                    ));
                 }
 
-                // Emit event so frontend can show the review modal
-                let _ = app_clone.emit("run:human-review", serde_json::json!({
-                    "runId":        run_id_clone,
-                    "nodeId":       node_id,
-                    "nodeName":     node.name,
-                    "instructions": instructions,
-                    "content":      preview,
-                    "timeoutMins":  node.human_timeout,
-                }));
-
-                // Wait for reviewer — with optional timeout
-                let timeout_secs = if node.human_timeout == 0 { u64::MAX } else { node.human_timeout * 60 };
-                let decision = if timeout_secs == u64::MAX {
-                    rx.await.ok()
-                } else {
-                    tokio::time::timeout(
-                        std::time::Duration::from_secs(timeout_secs),
-                        rx,
-                    ).await.ok().and_then(|r| r.ok())
-                };
-
-                // Clean up registry entry
-                {
-                    let registry = app_clone.state::<HumanReviewRegistry>();
-                    if let Ok(mut map) = registry.0.lock() { map.remove(&review_key); };
-                }
-
-                match decision {
-                    Some(d) if d.approved => {
-                        let feedback = if d.feedback.is_empty() { String::new() } else {
-                            format!("\n\nReviewer feedback: {}", d.feedback)
-                        };
-                        Ok(format!(
-                            "✓ APPROVED by human reviewer\nNode: {name}\nInstructions: {instructions}\nContent reviewed:\n{preview}{feedback}",
-                            name = node.name,
-                            instructions = node.human_prompt,
-                            preview = &user_msg[..user_msg.len().min(500)],
-                        ))
+                // Run the wave concurrently
+                let futures: Vec<_> = wave.iter().map(|(nid, _, _, node, user_msg)| {
+                    let client2   = client.clone();
+                    let app2      = app_clone.clone();
+                    let run_id2   = run_id_clone.clone();
+                    let node2     = node.clone();
+                    let user_msg2 = user_msg.clone();
+                    let nid2      = nid.clone();
+                    let api_key2  = api_key.clone();
+                    async move {
+                        call_node_llm(&client2, &node2, &api_key2, &user_msg2, &app2, &run_id2, &nid2).await
                     }
-                    Some(d) => {
-                        let feedback = if d.feedback.is_empty() { "No reason given.".to_string() } else { d.feedback };
-                        Err(format!("✗ REJECTED by human reviewer — {feedback}"))
-                    }
-                    None => {
-                        // Timeout
-                        match node.human_on_timeout.as_str() {
-                            "auto-approve" => Ok(format!(
-                                "⏱ Timeout — auto-approved per node configuration\nNode: {}",
-                                node.name
-                            )),
-                            "auto-reject" => Err(format!(
-                                "⏱ Timeout — auto-rejected per node configuration ({}m)",
-                                node.human_timeout
-                            )),
-                            _ => Err(format!(
-                                "⏱ Human review timed out after {}m — no response received",
-                                node.human_timeout
-                            )),
+                }).collect();
+
+                let results = futures_util::future::join_all(futures).await;
+
+                // Process results in level order (preserved by join_all)
+                for ((node_id, node_name, node_type, node, _), call_result) in wave.iter().zip(results.into_iter()) {
+                    match call_result {
+                        Ok(output) => {
+                            ctx = format!("{}\n\n[{}]: {}", ctx, node_name, output);
+                            node_outputs.insert(node_id.clone(), output.clone());
+
+                            // Shared memory writes
+                            if !node.shared_memory_writes.is_empty() {
+                                if let Ok(mut guard) = shared_memory.lock() {
+                                    for key in &node.shared_memory_writes {
+                                        guard.insert(key.clone(), output.clone());
+                                    }
+                                }
+                            }
+
+                            // Router branching
+                            if node_type == "router" {
+                                if let Ok(route_json) = serde_json::from_str::<serde_json::Value>(&output) {
+                                    if let Some(selected) = route_json.get("route").and_then(|v| v.as_str()) {
+                                        let sel_lower = selected.to_lowercase();
+                                        for edge in graph.edges.iter().filter(|e| e.from.as_str() == node_id.as_str()) {
+                                            let label_lower = edge.label.to_lowercase();
+                                            if !label_lower.is_empty()
+                                                && !label_lower.contains(&sel_lower)
+                                                && !sel_lower.contains(&label_lower) {
+                                                router_skip_edges.insert((edge.from.clone(), edge.to.clone()));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            let _ = app_clone.emit("run:node-done", serde_json::json!({
+                                "runId":  run_id_clone,
+                                "nodeId": node_id,
+                                "output": output.clone(),
+                            }));
+                            if let Ok(conn) = open_db(&app_clone) {
+                                let _ = conn.execute(
+                                    "UPDATE run_nodes SET status = 'done', output = ?1, finished_at = ?2 WHERE run_id = ?3 AND node_id = ?4",
+                                    rusqlite::params![output, now_iso(), run_id_clone, node_id],
+                                );
+                            }
+                        }
+                        Err(err) => {
+                            any_error = true;
+                            let _ = app_clone.emit("run:node-error", serde_json::json!({
+                                "runId":  run_id_clone,
+                                "nodeId": node_id,
+                                "error":  err.clone(),
+                            }));
+                            if let Ok(conn) = open_db(&app_clone) {
+                                let _ = conn.execute(
+                                    "UPDATE run_nodes SET status = 'error', error = ?1, finished_at = ?2 WHERE run_id = ?3 AND node_id = ?4",
+                                    rusqlite::params![err, now_iso(), run_id_clone, node_id],
+                                );
+                            }
                         }
                     }
                 }
-            } else {
-                call_node_llm(&client, node, &api_key, &user_msg, &app_clone, &run_id_clone, node_id).await
-            };
+                continue 'levels;
+            }
 
-            match call_result {
-                Ok(output) => {
-                    // append to accumulated context
-                    ctx = format!("{}\n\n[{}]: {}", ctx, node.name, output);
+            // ── Sequential path: single node OR level contains a blocking node ─
+            for node_id in level {
+                let node = match node_map.get(node_id.as_str()) {
+                    Some(n) => n,
+                    None    => continue,
+                };
 
-                    // ── Router branching: mark non-selected outgoing edges ────
-                    if node.node_type == "router" {
-                        if let Ok(route_json) = serde_json::from_str::<serde_json::Value>(&output) {
-                            if let Some(selected) = route_json.get("route").and_then(|v| v.as_str()) {
-                                let sel_lower = selected.to_lowercase();
-                                for edge in graph.edges.iter().filter(|e| e.from.as_str() == node_id.as_str()) {
-                                    let label_lower = edge.label.to_lowercase();
-                                    if !label_lower.is_empty()
-                                        && !label_lower.contains(&sel_lower)
-                                        && !sel_lower.contains(&label_lower) {
-                                        router_skip_edges.insert((edge.from.clone(), edge.to.clone()));
+                // Skip check
+                let incoming: Vec<&GraphEdge> = graph.edges.iter()
+                    .filter(|e| e.to.as_str() == node_id.as_str())
+                    .collect();
+                let should_skip = !incoming.is_empty() && incoming.iter().all(|e| {
+                    skipped.contains(e.from.as_str())
+                        || router_skip_edges.contains(&(e.from.clone(), e.to.clone()))
+                });
+                if should_skip {
+                    skipped.insert(node_id.to_string());
+                    let _ = app_clone.emit("run:node-done", serde_json::json!({
+                        "runId":  run_id_clone,
+                        "nodeId": node_id,
+                        "output": "⊘ Skipped — not on selected route",
+                    }));
+                    if let Ok(conn) = open_db(&app_clone) {
+                        let _ = conn.execute(
+                            "UPDATE run_nodes SET status = 'cancelled', output = ?1, finished_at = ?2 WHERE run_id = ?3 AND node_id = ?4",
+                            rusqlite::params!["Skipped", now_iso(), run_id_clone, node_id],
+                        );
+                    }
+                    continue;
+                }
+
+                // emit node-start
+                let _ = app_clone.emit("run:node-start", serde_json::json!({
+                    "runId":  run_id_clone,
+                    "nodeId": node_id,
+                }));
+                if let Ok(conn) = open_db(&app_clone) {
+                    let _ = conn.execute(
+                        "UPDATE run_nodes SET status = 'running', started_at = ?1 WHERE run_id = ?2 AND node_id = ?3",
+                        rusqlite::params![now_iso(), run_id_clone, node_id],
+                    );
+                }
+
+                // Build base_msg using continue/fresh edge logic
+                let base_msg = build_context_for_node(
+                    node_id, &ctx, &graph.edges,
+                    &node_outputs, &node_map, &initial_prompt_ref,
+                );
+
+                // Shared memory reads
+                let sm_prefix = {
+                    if node.shared_memory_reads.is_empty() {
+                        String::new()
+                    } else if let Ok(guard) = shared_memory.lock() {
+                        let parts: Vec<String> = node.shared_memory_reads.iter()
+                            .filter_map(|key| guard.get(key).map(|v| format!("[memory:{}] {}", key, v)))
+                            .collect();
+                        if parts.is_empty() { String::new() }
+                        else { format!("=== Shared Memory ===\n{}\n\n", parts.join("\n")) }
+                    } else { String::new() }
+                };
+
+                // Scratchpad path injection
+                let scratch_prefix = if node.use_scratchpad {
+                    format!("=== Scratchpad ===\nPath: {}\nRead and write files here to share state with other agents.\n\n", scratchpad_str)
+                } else { String::new() };
+
+                // Worker context for orchestrators
+                let worker_ctx = build_worker_context(
+                    node_id, &node.node_type, &graph.edges, &node_map,
+                );
+
+                // Tool tier annotation
+                let tier_note = if node.tool_tier == "simple"
+                    && (node.node_type == "agent" || node.node_type == "orchestrator") {
+                    "[Mode: simple tools — Bash, File Read, File Edit only]\n\n".to_string()
+                } else { String::new() };
+
+                // Data sources
+                let ds_prefix = read_data_sources(&node.data_sources, &client).await;
+                let user_msg = format!("{worker_ctx}{sm_prefix}{scratch_prefix}{tier_note}{ds_prefix}{base_msg}");
+
+                // ── Human-in-loop: block and wait for reviewer response ───────
+                let call_result: Result<String, String> = if node.node_type == "human-in-loop" {
+                    let instructions = if node.human_prompt.is_empty() {
+                        "Please review the content above and approve or reject.".to_string()
+                    } else {
+                        node.human_prompt.clone()
+                    };
+                    let preview = &user_msg[..user_msg.len().min(1500)];
+                    let review_key = format!("{}:{}", run_id_clone, node_id);
+
+                    let (tx, rx) = oneshot::channel::<HumanReviewDecision>();
+                    {
+                        let registry = app_clone.state::<HumanReviewRegistry>();
+                        if let Ok(mut map) = registry.0.lock() {
+                            map.insert(review_key.clone(), tx);
+                        };
+                    }
+
+                    let _ = app_clone.emit("run:human-review", serde_json::json!({
+                        "runId":        run_id_clone,
+                        "nodeId":       node_id,
+                        "nodeName":     node.name,
+                        "instructions": instructions,
+                        "content":      preview,
+                        "timeoutMins":  node.human_timeout,
+                    }));
+
+                    let timeout_secs = if node.human_timeout == 0 { u64::MAX } else { node.human_timeout * 60 };
+                    let decision = if timeout_secs == u64::MAX {
+                        rx.await.ok()
+                    } else {
+                        tokio::time::timeout(
+                            std::time::Duration::from_secs(timeout_secs),
+                            rx,
+                        ).await.ok().and_then(|r| r.ok())
+                    };
+
+                    {
+                        let registry = app_clone.state::<HumanReviewRegistry>();
+                        if let Ok(mut map) = registry.0.lock() { map.remove(&review_key); };
+                    }
+
+                    match decision {
+                        Some(d) if d.approved => {
+                            let feedback = if d.feedback.is_empty() { String::new() } else {
+                                format!("\n\nReviewer feedback: {}", d.feedback)
+                            };
+                            Ok(format!(
+                                "✓ APPROVED by human reviewer\nNode: {name}\nInstructions: {instructions}\nContent reviewed:\n{preview}{feedback}",
+                                name         = node.name,
+                                instructions = node.human_prompt,
+                                preview      = &user_msg[..user_msg.len().min(500)],
+                            ))
+                        }
+                        Some(d) => {
+                            let feedback = if d.feedback.is_empty() { "No reason given.".to_string() } else { d.feedback };
+                            Err(format!("✗ REJECTED by human reviewer — {feedback}"))
+                        }
+                        None => {
+                            match node.human_on_timeout.as_str() {
+                                "auto-approve" => Ok(format!(
+                                    "⏱ Timeout — auto-approved per node configuration\nNode: {}",
+                                    node.name
+                                )),
+                                "auto-reject" => Err(format!(
+                                    "⏱ Timeout — auto-rejected per node configuration ({}m)",
+                                    node.human_timeout
+                                )),
+                                _ => Err(format!(
+                                    "⏱ Human review timed out after {}m — no response received",
+                                    node.human_timeout
+                                )),
+                            }
+                        }
+                    }
+                } else {
+                    call_node_llm(&client, node, &api_key, &user_msg, &app_clone, &run_id_clone, node_id).await
+                };
+
+                match call_result {
+                    Ok(output) => {
+                        ctx = format!("{}\n\n[{}]: {}", ctx, node.name, output);
+                        node_outputs.insert(node_id.to_string(), output.clone());
+
+                        // Shared memory writes
+                        if !node.shared_memory_writes.is_empty() {
+                            if let Ok(mut guard) = shared_memory.lock() {
+                                for key in &node.shared_memory_writes {
+                                    guard.insert(key.clone(), output.clone());
+                                }
+                            }
+                        }
+
+                        // Router branching
+                        if node.node_type == "router" {
+                            if let Ok(route_json) = serde_json::from_str::<serde_json::Value>(&output) {
+                                if let Some(selected) = route_json.get("route").and_then(|v| v.as_str()) {
+                                    let sel_lower = selected.to_lowercase();
+                                    for edge in graph.edges.iter().filter(|e| e.from.as_str() == node_id.as_str()) {
+                                        let label_lower = edge.label.to_lowercase();
+                                        if !label_lower.is_empty()
+                                            && !label_lower.contains(&sel_lower)
+                                            && !sel_lower.contains(&label_lower) {
+                                            router_skip_edges.insert((edge.from.clone(), edge.to.clone()));
+                                        }
                                     }
                                 }
                             }
                         }
+
+                        let _ = app_clone.emit("run:node-done", serde_json::json!({
+                            "runId":  run_id_clone,
+                            "nodeId": node_id,
+                            "output": output.clone(),
+                        }));
+                        if let Ok(conn) = open_db(&app_clone) {
+                            let _ = conn.execute(
+                                "UPDATE run_nodes SET status = 'done', output = ?1, finished_at = ?2 WHERE run_id = ?3 AND node_id = ?4",
+                                rusqlite::params![output, now_iso(), run_id_clone, node_id],
+                            );
+                        }
                     }
-
-                    // emit node-done
-                    let _ = app_clone.emit("run:node-done", serde_json::json!({
-                        "runId":  run_id_clone,
-                        "nodeId": node_id,
-                        "output": output.clone(),
-                    }));
-
-                    // update DB: done
-                    if let Ok(conn) = open_db(&app_clone) {
-                        let _ = conn.execute(
-                            "UPDATE run_nodes SET status = 'done', output = ?1, finished_at = ?2 WHERE run_id = ?3 AND node_id = ?4",
-                            rusqlite::params![output, now_iso(), run_id_clone, node_id],
-                        );
+                    Err(err) => {
+                        any_error = true;
+                        let _ = app_clone.emit("run:node-error", serde_json::json!({
+                            "runId":  run_id_clone,
+                            "nodeId": node_id,
+                            "error":  err.clone(),
+                        }));
+                        if let Ok(conn) = open_db(&app_clone) {
+                            let _ = conn.execute(
+                                "UPDATE run_nodes SET status = 'error', error = ?1, finished_at = ?2 WHERE run_id = ?3 AND node_id = ?4",
+                                rusqlite::params![err, now_iso(), run_id_clone, node_id],
+                            );
+                        }
                     }
-                }
-                Err(err) => {
-                    any_error = true;
-
-                    // emit node-error
-                    let _ = app_clone.emit("run:node-error", serde_json::json!({
-                        "runId":  run_id_clone,
-                        "nodeId": node_id,
-                        "error":  err.clone(),
-                    }));
-
-                    // update DB: error
-                    if let Ok(conn) = open_db(&app_clone) {
-                        let _ = conn.execute(
-                            "UPDATE run_nodes SET status = 'error', error = ?1, finished_at = ?2 WHERE run_id = ?3 AND node_id = ?4",
-                            rusqlite::params![err, now_iso(), run_id_clone, node_id],
-                        );
-                    }
-                    // continue to next node — don't abort the whole run
                 }
             }
         }
@@ -1531,6 +1984,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(CancelRegistry(Mutex::new(HashMap::new())))
         .manage(HumanReviewRegistry(Mutex::new(HashMap::new())))
+        .manage(SharedMemoryStore(Mutex::new(HashMap::new())))
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
